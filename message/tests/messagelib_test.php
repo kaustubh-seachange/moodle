@@ -48,7 +48,7 @@ class core_message_messagelib_testcase extends advanced_testcase {
      *
      * This is executed before running any test in this file.
      */
-    public function setUp() {
+    public function setUp(): void {
         $this->preventResetByRollback(); // Messaging is not compatible with transactions.
         $this->messagesink = $this->redirectMessages();
         $this->resetAfterTest();
@@ -143,6 +143,7 @@ class core_message_messagelib_testcase extends advanced_testcase {
 
     /**
      * Test message_count_unread_messages.
+     * TODO: MDL-69643
      */
     public function test_message_count_unread_messages() {
         // Create users to send and receive message.
@@ -151,13 +152,17 @@ class core_message_messagelib_testcase extends advanced_testcase {
         $userto = $this->getDataGenerator()->create_user();
 
         $this->assertEquals(0, message_count_unread_messages($userto));
+        $this->assertDebuggingCalled();
 
         // Send fake messages.
         $this->send_fake_message($userfrom1, $userto);
         $this->send_fake_message($userfrom2, $userto);
 
         $this->assertEquals(2, message_count_unread_messages($userto));
+        $this->assertDebuggingCalled();
+
         $this->assertEquals(1, message_count_unread_messages($userto, $userfrom1));
+        $this->assertDebuggingCalled();
     }
 
     /**
@@ -183,7 +188,10 @@ class core_message_messagelib_testcase extends advanced_testcase {
 
         // Should only count the messages that weren't read by the current user.
         $this->assertEquals(1, message_count_unread_messages($userto));
+        $this->assertDebuggingCalledCount(2);
+
         $this->assertEquals(0, message_count_unread_messages($userto, $userfrom1));
+        $this->assertDebuggingCalled();
     }
 
     /**
@@ -198,6 +206,7 @@ class core_message_messagelib_testcase extends advanced_testcase {
         $userto = $this->getDataGenerator()->create_user();
 
         $this->assertEquals(0, message_count_unread_messages($userto));
+        $this->assertDebuggingCalled();
 
         // Send fake messages.
         $messageid = $this->send_fake_message($userfrom1, $userto);
@@ -208,7 +217,9 @@ class core_message_messagelib_testcase extends advanced_testcase {
 
         // Should only count the messages that weren't deleted by the current user.
         $this->assertEquals(1, message_count_unread_messages($userto));
+        $this->assertDebuggingCalled();
         $this->assertEquals(0, message_count_unread_messages($userto, $userfrom1));
+        $this->assertDebuggingCalled();
     }
 
     /**
@@ -220,7 +231,9 @@ class core_message_messagelib_testcase extends advanced_testcase {
 
         $this->send_fake_message($userfrom, $userto);
 
+        // Ensure an exception is thrown.
         $this->assertEquals(0, message_count_unread_messages($userfrom));
+        $this->assertDebuggingCalled();
     }
 
     /**
@@ -250,6 +263,8 @@ class core_message_messagelib_testcase extends advanced_testcase {
      * Test message_get_messages.
      */
     public function test_message_get_messages() {
+        global $DB;
+
         $this->resetAfterTest(true);
 
         // Set this user as the admin.
@@ -274,11 +289,34 @@ class core_message_messagelib_testcase extends advanced_testcase {
         $im3 = testhelper::send_fake_message_to_conversation($user1, $ic1->id, 'Message 3');
         $im4 = testhelper::send_fake_message_to_conversation($user1, $ic2->id, 'Message 4');
 
-        // Retrieve all messages sent from user1 to user2.
-        $lastmessages = message_get_messages($user2->id, $user1->id, 0, false);
+        // Mark a message as read by user2.
+        $message = $DB->get_record('messages', ['id' => $im1]);
+        \core_message\api::mark_message_as_read($user2->id, $message);
+
+        // Retrieve unread messages sent from user1 to user2.
+        $lastmessages = message_get_messages($user2->id, $user1->id, 0, MESSAGE_GET_UNREAD);
+        $this->assertCount(1, $lastmessages);
+        $this->assertArrayHasKey($im3, $lastmessages);
+
+        // Get only read messages.
+        $lastmessages = message_get_messages($user2->id, $user1->id, 0, MESSAGE_GET_READ);
+        $this->assertCount(1, $lastmessages);
+        $this->assertArrayHasKey($im1, $lastmessages);
+
+        // Get both read and unread.
+        $lastmessages = message_get_messages($user2->id, $user1->id, 0, MESSAGE_GET_READ_AND_UNREAD);
         $this->assertCount(2, $lastmessages);
         $this->assertArrayHasKey($im1, $lastmessages);
         $this->assertArrayHasKey($im3, $lastmessages);
+
+        // Repeat retrieve read/unread messages but using a bool to test backwards compatibility.
+        $lastmessages = message_get_messages($user2->id, $user1->id, 0, false);
+        $this->assertCount(1, $lastmessages);
+        $this->assertArrayHasKey($im3, $lastmessages);
+
+        $lastmessages = message_get_messages($user2->id, $user1->id, 0, true);
+        $this->assertCount(1, $lastmessages);
+        $this->assertArrayHasKey($im1, $lastmessages);
 
         // Create some group conversations.
         $gc1 = \core_message\api::create_conversation(\core_message\api::MESSAGE_CONVERSATION_TYPE_GROUP,
@@ -289,7 +327,7 @@ class core_message_messagelib_testcase extends advanced_testcase {
 
         // Retrieve all messages sent from user1 to user2 (the result should be the same as before, because only individual
         // conversations should be considered by the message_get_messages function).
-        $lastmessages = message_get_messages($user2->id, $user1->id, 0, false);
+        $lastmessages = message_get_messages($user2->id, $user1->id, 0, MESSAGE_GET_READ_AND_UNREAD);
         $this->assertCount(2, $lastmessages);
         $this->assertArrayHasKey($im1, $lastmessages);
         $this->assertArrayHasKey($im3, $lastmessages);
@@ -318,7 +356,7 @@ class core_message_messagelib_testcase extends advanced_testcase {
 
         // Retrieve all messages sent from user1 to user2. There shouldn't be messages, because only individual
         // conversations should be considered by the message_get_messages function.
-        $lastmessages = message_get_messages($user2->id, $user1->id, 0, false);
+        $lastmessages = message_get_messages($user2->id, $user1->id, 0, MESSAGE_GET_READ_AND_UNREAD);
         $this->assertCount(0, $lastmessages);
     }
 
