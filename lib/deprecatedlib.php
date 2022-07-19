@@ -664,7 +664,7 @@ function groups_course_module_visible() {
  */
 function error() {
     throw new coding_exception('notlocalisederrormessage', 'error', $link, $message, 'error() is a removed, please call
-            print_error() instead of error()');
+            throw new \moodle_exception() instead of error()');
 }
 
 
@@ -2869,22 +2869,12 @@ function get_module_metadata($course, $modnames, $sectionreturn = null) {
 }
 
 /**
- * Runs a single cron task. This function assumes it is displaying output in pseudo-CLI mode.
- *
- * The function will fail if the task is disabled.
- *
- * Warning: Because this function closes the browser session, it may not be safe to continue
- * with other processing (other than displaying the rest of the page) after using this function!
- *
  * @deprecated since Moodle 3.9 MDL-63580. Please use the \core\task\manager::run_from_cli($task).
- * @todo final deprecation. To be removed in Moodle 4.1 MDL-63594.
- * @param \core\task\scheduled_task $task Task to run
- * @return bool True if cron run successful
  */
-function cron_run_single_task(\core\task\scheduled_task $task) {
-    debugging('cron_run_single_task() is deprecated. Please use \\core\task\manager::run_from_cli() instead.',
-        DEBUG_DEVELOPER);
-    return \core\task\manager::run_from_cli($task);
+function cron_run_single_task() {
+    throw new coding_exception(
+        'cron_run_single_task() has been removed. Please use \\core\task\manager::run_from_cli() instead.'
+    );
 }
 
 /**
@@ -3743,4 +3733,25 @@ function get_array_of_activities(int $courseid, bool $usecache = false): array {
     debugging(__FUNCTION__ . '() is deprecated. ' . 'Please use course_modinfo::get_array_of_activities() instead.',
         DEBUG_DEVELOPER);
     return course_modinfo::get_array_of_activities(get_course($courseid), $usecache);
+}
+
+/**
+ * Abort execution by throwing of a general exception,
+ * default exception handler displays the error message in most cases.
+ *
+ * @deprecated since Moodle 4.1
+ * @todo MDL-74484 Final deprecation in Moodle 4.5.
+ * @param string $errorcode The name of the language string containing the error message.
+ *      Normally this should be in the error.php lang file.
+ * @param string $module The language file to get the error message from.
+ * @param string $link The url where the user will be prompted to continue.
+ *      If no url is provided the user will be directed to the site index page.
+ * @param object $a Extra words and phrases that might be required in the error string
+ * @param string $debuginfo optional debugging information
+ * @return void, always throws exception!
+ */
+function print_error($errorcode, $module = 'error', $link = '', $a = null, $debuginfo = null) {
+    debugging("The function print_error() is deprecated. " .
+            "Please throw a new moodle_exception instance instead.", DEBUG_DEVELOPER);
+    throw new \moodle_exception($errorcode, $module, $link, $a, $debuginfo);
 }
