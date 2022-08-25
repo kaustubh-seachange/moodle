@@ -4201,14 +4201,14 @@ class curl {
         $crlf = "\r\n";
         return preg_replace(
                 // HTTP version and status code (ignore value of code).
-                '~^HTTP/1\..*' . $crlf .
+                '~^HTTP/[1-9](\.[0-9])?.*' . $crlf .
                 // Header name: character between 33 and 126 decimal, except colon.
                 // Colon. Header value: any character except \r and \n. CRLF.
                 '(?:[\x21-\x39\x3b-\x7e]+:[^' . $crlf . ']+' . $crlf . ')*' .
                 // Headers are terminated by another CRLF (blank line).
                 $crlf .
                 // Second HTTP status code, this time must be 200.
-                '(HTTP/1.[01] 200 )~', '$1', $input);
+                '(HTTP/[1-9](\.[0-9])? 200)~', '$2', $input);
     }
 }
 
@@ -5129,16 +5129,26 @@ function file_pluginfile($relativepath, $forcedownload, $preview = null, $offlin
             send_file_not_found();
         }
 
+        $componentargs = fullclone($args);
         $itemid = (int)array_shift($args);
         $filename = array_pop($args);
         $filepath = $args ? '/'.implode('/', $args).'/' : '/';
-        if (!$file = $fs->get_file($context->id, $component, $filearea, $itemid, $filepath, $filename) or
-            $file->is_directory()) {
-            send_file_not_found();
-        }
 
         \core\session\manager::write_close(); // Unlock session during file serving.
-        send_stored_file($file, 0, 0, true, $sendfileoptions); // must force download - security!
+
+        $contenttype = $DB->get_field('contentbank_content', 'contenttype', ['id' => $itemid]);
+        if (component_class_callback("\\{$contenttype}\\contenttype", 'pluginfile',
+                [$course, null, $context, $filearea, $componentargs, $forcedownload, $sendfileoptions], false) === false) {
+
+            if (!$file = $fs->get_file($context->id, $component, $filearea, $itemid, $filepath, $filename) or
+
+                $file->is_directory()) {
+                send_file_not_found();
+
+            } else {
+                send_stored_file($file, 0, 0, true, $sendfileoptions); // Must force download - security!
+            }
+        }
     } else if (strpos($component, 'mod_') === 0) {
         $modname = substr($component, 4);
         if (!file_exists("$CFG->dirroot/mod/$modname/lib.php")) {
