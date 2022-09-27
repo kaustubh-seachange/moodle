@@ -1,5 +1,4 @@
 <?php
-
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -85,6 +84,9 @@ class data_field_base {     // Base class for Database Field Types (see field/*/
     /** priority value for maximum priority */
     const MAX_PRIORITY = 4;
 
+    /** @var bool whether the field is used in preview mode. */
+    protected $preview = false;
+
     /**
      * Constructor function
      *
@@ -146,6 +148,58 @@ class data_field_base {     // Base class for Database Field Types (see field/*/
      */
     public function get_name(): string {
         return $this->field->name;
+    }
+
+    /**
+     * Return if the field type supports preview.
+     *
+     * Fields without a preview cannot be displayed in the preset preview.
+     *
+     * @return bool if the plugin supports preview.
+     */
+    public function supports_preview(): bool {
+        return false;
+    }
+
+    /**
+     * Generate a fake data_content for this field to be used in preset previews.
+     *
+     * Data plugins must override this method and support_preview in order to enable
+     * preset preview for this field.
+     *
+     * @param int $recordid the fake record id
+     * @return stdClass the fake record
+     */
+    public function get_data_content_preview(int $recordid): stdClass {
+        $message = get_string('nopreviewavailable', 'mod_data', $this->field->name);
+        return (object)[
+            'id' => 0,
+            'fieldid' => $this->field->id,
+            'recordid' => $recordid,
+            'content' => "<span class=\"nopreview\">$message</span>",
+            'content1' => null,
+            'content2' => null,
+            'content3' => null,
+            'content4' => null,
+        ];
+    }
+
+    /**
+     * Set the field to preview mode.
+     *
+     * @param bool $preview the new preview value
+     */
+    public function set_preview(bool $preview) {
+        $this->preview = $preview;
+    }
+
+    /**
+     * Get the field preview value.
+     *
+     * @return bool
+     */
+    public function get_preview(): bool {
+        return $this->preview;
     }
 
 
@@ -378,6 +432,23 @@ class data_field_base {     // Base class for Database Field Types (see field/*/
     }
 
     /**
+     * Return the data_content of the field, or generate it if it is in preview mode.
+     *
+     * @param int $recordid the record id
+     * @return stdClass|bool the record data or false if none
+     */
+    protected function get_data_content(int $recordid) {
+        global $DB;
+        if ($this->preview) {
+            return $this->get_data_content_preview($recordid);
+        }
+        return $DB->get_record(
+            'data_content',
+            ['fieldid' => $this->field->id, 'recordid' => $recordid]
+        );
+    }
+
+    /**
      * Display the content of the field in browse mode
      *
      * @global object
@@ -387,23 +458,18 @@ class data_field_base {     // Base class for Database Field Types (see field/*/
      */
     function display_browse_field($recordid, $template) {
         global $DB;
-
-        if ($content = $DB->get_record('data_content', array('fieldid'=>$this->field->id, 'recordid'=>$recordid))) {
-            if (isset($content->content)) {
-                $options = new stdClass();
-                if ($this->field->param1 == '1') {  // We are autolinking this field, so disable linking within us
-                    //$content->content = '<span class="nolink">'.$content->content.'</span>';
-                    //$content->content1 = FORMAT_HTML;
-                    $options->filter=false;
-                }
-                $options->para = false;
-                $str = format_text($content->content, $content->content1, $options);
-            } else {
-                $str = '';
-            }
-            return $str;
+        $content = $this->get_data_content($recordid);
+        if (!$content || !isset($content->content)) {
+            return '';
         }
-        return false;
+        $options = new stdClass();
+        if ($this->field->param1 == '1') {
+            // We are autolinking this field, so disable linking within us.
+            $options->filter = false;
+        }
+        $options->para = false;
+        $str = format_text($content->content, $content->content1, $options);
+        return $str;
     }
 
     /**
@@ -606,15 +672,16 @@ class data_field_base {     // Base class for Database Field Types (see field/*/
  * @param int $recordid the entry record
  * @param bool $form print a form instead of data
  * @param bool $update if the function update the $data object or not
- * @return bool|string the template content.
+ * @return string the template content or an empty string if no content is available (for instance, when database has no fields).
  */
 function data_generate_default_template(&$data, $template, $recordid = 0, $form = false, $update = true) {
     global $DB;
 
-    if (!$data && !$template) {
-        return false;
+    if (!$data || !$template) {
+        return '';
     }
 
+    // These templates are empty by default (they have no content).
     $defaulttemplates = [
         'csstemplate',
         'jstemplate',
@@ -626,7 +693,8 @@ function data_generate_default_template(&$data, $template, $recordid = 0, $form 
         return '';
     }
 
-    // get all the fields for that database
+    // Get all the fields for that database.
+    $str = '';
     if ($fields = $DB->get_records('data_fields', array('dataid'=>$data->id), 'id')) {
 
         $table = new html_table();
@@ -675,7 +743,6 @@ function data_generate_default_template(&$data, $template, $recordid = 0, $form 
             $table->data[] = $row;
         }
 
-        $str = '';
         if ($template == 'listtemplate'){
             $str .= '##delcheck##';
             $str .= html_writer::empty_tag('br');
@@ -695,9 +762,9 @@ function data_generate_default_template(&$data, $template, $recordid = 0, $form 
             $DB->update_record('data', $newdata);
             $data->{$template} = $str;
         }
-
-        return $str;
     }
+
+    return $str;
 }
 
 /**
@@ -2084,8 +2151,13 @@ function data_get_available_site_presets($context, array $presets=array()) {
  *
  * @param string $name
  * @return bool
+ * @deprecated since Moodle 4.1 MDL-75187 - please, use the preset::delete() function instead.
+ * @todo MDL-75189 This will be deleted in Moodle 4.5.
+ * @see preset::delete()
  */
 function data_delete_site_preset($name) {
+    debugging('data_delete_site_preset() is deprecated. Please use preset::delete() instead.', DEBUG_DEVELOPER);
+
     $fs = get_file_storage();
 
     $files = $fs->get_directory_files(DATA_PRESET_CONTEXT, DATA_PRESET_COMPONENT, DATA_PRESET_FILEAREA, 0, '/'.$name.'/');
@@ -3851,9 +3923,21 @@ function data_get_advanced_search_sql($sort, $data, $recordids, $selectdata, $so
  * @param stdClass $context  Context object.
  * @param stdClass $preset  The preset object that we are checking for deletion.
  * @return bool  Returns true if the user can delete, otherwise false.
+ * @deprecated since Moodle 4.1 MDL-75187 - please, use the preset::can_manage() function instead.
+ * @todo MDL-75189 This will be deleted in Moodle 4.5.
+ * @see preset::can_manage()
  */
 function data_user_can_delete_preset($context, $preset) {
     global $USER;
+
+    debugging('data_user_can_delete_preset() is deprecated. Please use manager::can_manage() instead.', DEBUG_DEVELOPER);
+
+    if ($context->contextlevel == CONTEXT_MODULE && isset($preset->name)) {
+        $cm = get_coursemodule_from_id('', $context->instanceid, 0, false, MUST_EXIST);
+        $manager = manager::create_from_coursemodule($cm);
+        $todelete = preset::create_from_instance($manager, $preset->name);
+        return $todelete->can_manage();
+    }
 
     if (has_capability('mod/data:manageuserpresets', $context)) {
         return true;

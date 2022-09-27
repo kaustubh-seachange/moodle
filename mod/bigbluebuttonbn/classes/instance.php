@@ -756,11 +756,26 @@ EOF;
      * @return bool
      */
     public function can_import_recordings(): bool {
+        if (!config::get('importrecordings_enabled')) {
+            return false;
+        }
         if ($this->can_manage_recordings()) {
             return true;
         }
 
         return $this->is_feature_enabled('importrecordings');
+    }
+
+    /**
+     * Get recordings_imported from instancedata.
+     *
+     * @return bool
+     */
+    public function get_recordings_imported(): bool {
+        if (config::get('recordings_imported_editable')) {
+            return (bool) $this->get_instance_var('recordings_imported');
+        }
+        return config::get('recordings_imported_default');
     }
 
     /**
@@ -999,6 +1014,8 @@ EOF;
         return new moodle_url('/mod/bigbluebuttonbn/bbb_view.php', [
             'action' => 'logout',
             'id' => $this->cm->id,
+            'courseid' => $this->cm->course // Used to find the course if ever the activity is deleted
+            // while the meeting is running.
         ]);
     }
 

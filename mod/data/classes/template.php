@@ -16,6 +16,8 @@
 
 namespace mod_data;
 
+use action_menu;
+use action_menu_link_secondary;
 use core\output\checkbox_toggleall;
 use html_writer;
 use mod_data\manager;
@@ -47,6 +49,9 @@ class template {
     /** @var string the template. */
     private $templatecontent;
 
+    /** @var string the template name. */
+    private $templatename;
+
     /** @var moodle_url the base url. */
     private $baseurl;
 
@@ -59,6 +64,9 @@ class template {
     /** @var bool if comments must be added if not present in the template. */
     private $forcecomments;
 
+    /** @var bool if show more option must be added. */
+    private $showmore;
+
     /** @var bool if the current user can manage entries. */
     private $canmanageentries = null;
 
@@ -68,6 +76,9 @@ class template {
     /** @var array All template tags (calculated in load_template_tags). */
     protected $tags = [];
 
+    /** @var array The mod_data fields. */
+    protected $fields = [];
+
     /**
      * Class contructor.
      *
@@ -76,8 +87,9 @@ class template {
      * @param manager $manager the current instance manager
      * @param string $templatecontent the template string to use
      * @param array $options an array of extra diplay options
+     * @param array $fields alternative array of fields (for preview presets)
      */
-    public function __construct(manager $manager, string $templatecontent, array $options = []) {
+    public function __construct(manager $manager, string $templatecontent, array $options = [], array $fields = null) {
         $this->manager = $manager;
         $this->instance = $manager->get_instance();
         $this->templatecontent = $templatecontent;
@@ -85,6 +97,7 @@ class template {
         $context = $manager->get_context();
         $this->canmanageentries = has_capability('mod/data:manageentries', $context);
         $this->icons = $this->get_icons();
+        $this->fields = $fields ?? $manager->get_fields();
         $this->add_options($options);
         $this->load_template_tags($templatecontent);
     }
@@ -115,6 +128,8 @@ class template {
         $this->search = $options['search'] ?? null;
         $this->ratings = $options['ratings'] ?? false;
         $this->forcecomments = $options['comments'] ?? false;
+        $this->showmore = $options['showmore'] ?? false;
+        $this->templatename = $options['templatename'] ?? 'singletemplate';
     }
 
     /**
@@ -205,13 +220,12 @@ class template {
      */
     private function get_fields_replacements(stdClass $entry): array {
         $result = [];
-        $fields = $this->manager->get_fields();
-        foreach ($fields as $field) {
+        foreach ($this->fields as $field) {
             // Field value.
             $pattern = '[[' . $field->field->name . ']]';
             $result[$pattern] = highlight(
                 $this->search,
-                $field->display_browse_field($entry->id, $this->templatecontent)
+                $field->display_browse_field($entry->id, $this->templatename)
             );
             // Field id.
             $pattern = '[[' . $field->field->name . '#id]]';
@@ -320,6 +334,11 @@ class template {
      */
     protected function get_tag_more_replacement(stdClass $entry, bool $canmanageentry): string {
         global $OUTPUT;
+
+        if (!$this->showmore) {
+            return '';
+        }
+
         $url = new moodle_url($this->baseurl, [
             'rid' => $entry->id,
             'filter' => 1,
@@ -433,8 +452,7 @@ class template {
             ['id' => $cm->id, 'recordid' => $entry->id],
             'mod_data'
         );
-        $fields = $this->manager->get_fields();
-        list($formats, $files) = data_portfolio_caller::formats($fields, $entry);
+        list($formats, $files) = data_portfolio_caller::formats($this->fields, $entry);
         $button->set_formats($formats);
         $result = $button->to_html(PORTFOLIO_ADD_ICON_LINK);
         if (is_null($result)) {
@@ -599,4 +617,123 @@ class template {
         return (string) $entry->id;
     }
 
+    /**
+     * Returns the ##actionsmenu## tag replacement for an entry.
+     *
+     * @param stdClass $entry the entry object
+     * @param bool $canmanageentry if the current user can manage this entry
+     * @return string the tag replacement
+     */
+    protected function get_tag_actionsmenu_replacement(stdClass $entry, bool $canmanageentry): string {
+        global $OUTPUT, $CFG;
+
+        $actionmenu = new action_menu();
+        $icon = $OUTPUT->pix_icon('i/menu', get_string('actions'));
+        $actionmenu->set_menu_trigger($icon, 'btn btn-icon d-flex align-items-center justify-content-center');
+        $actionmenu->set_action_label(get_string('actions'));
+        $actionmenu->attributes['class'] .= ' entry-actionsmenu';
+
+        // Show more.
+        if ($this->showmore) {
+            $showmoreurl = new moodle_url($this->baseurl, [
+                'rid' => $entry->id,
+                'filter' => 1,
+            ]);
+            $actionmenu->add(new action_menu_link_secondary(
+                $showmoreurl,
+                null,
+                get_string('showmore', 'mod_data')
+            ));
+        }
+
+        if ($canmanageentry) {
+            // Edit entry.
+            $backurl = new moodle_url($this->baseurl, [
+                'rid' => $entry->id,
+                'mode' => 'single',
+            ]);
+            $editurl = new moodle_url('/mod/data/edit.php', $this->baseurl->params());
+            $editurl->params([
+                'rid' => $entry->id,
+                'sesskey' => sesskey(),
+                'backto' => urlencode($backurl->out(false))
+            ]);
+
+            $actionmenu->add(new action_menu_link_secondary(
+                $editurl,
+                null,
+                get_string('edit')
+            ));
+
+            // Delete entry.
+            $deleteurl = new moodle_url($this->baseurl, [
+                'delete' => $entry->id,
+                'sesskey' => sesskey(),
+                'mode' => 'single',
+            ]);
+
+            $actionmenu->add(new action_menu_link_secondary(
+                $deleteurl,
+                null,
+                get_string('delete')
+            ));
+        }
+
+        // Approve/disapprove entry.
+        $context = $this->manager->get_context();
+        if (has_capability('mod/data:approve', $context) && $this->instance->approval) {
+            if ($entry->approved) {
+                $disapproveurl = new moodle_url($this->baseurl, [
+                    'disapprove' => $entry->id,
+                    'sesskey' => sesskey(),
+                ]);
+                $actionmenu->add(new action_menu_link_secondary(
+                    $disapproveurl,
+                    null,
+                    get_string('disapprove', 'mod_data')
+                ));
+            } else {
+                $approveurl = new moodle_url($this->baseurl, [
+                    'approve' => $entry->id,
+                    'sesskey' => sesskey(),
+                ]);
+                $actionmenu->add(new action_menu_link_secondary(
+                    $approveurl,
+                    null,
+                    get_string('approve', 'mod_data')
+                ));
+            }
+        }
+
+        // Export entry to portfolio.
+        if (!empty($CFG->enableportfolios)) {
+            // Check the user can export the entry.
+            $cm = $this->manager->get_coursemodule();
+            $canexportall = has_capability('mod/data:exportentry', $context);
+            $canexportown = has_capability('mod/data:exportownentry', $context);
+            if ($canexportall || (data_isowner($entry->id) && $canexportown)) {
+                // Add the portfolio export button.
+                require_once($CFG->libdir . '/portfoliolib.php');
+                $button = new portfolio_add_button();
+                $button->set_callback_options(
+                    'data_portfolio_caller',
+                    ['id' => $cm->id, 'recordid' => $entry->id],
+                    'mod_data'
+                );
+                $fields = $this->manager->get_fields();
+                list($formats, $files) = data_portfolio_caller::formats($fields, $entry);
+                $button->set_formats($formats);
+                $exporturl = $button->to_html(PORTFOLIO_ADD_MOODLE_URL);
+                if (!is_null($exporturl)) {
+                    $actionmenu->add(new action_menu_link_secondary(
+                        $exporturl,
+                        null,
+                        get_string('addtoportfolio', 'portfolio')
+                    ));
+                }
+            }
+        }
+
+        return $OUTPUT->render($actionmenu);
+    }
 }

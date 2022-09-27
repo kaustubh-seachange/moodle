@@ -20,12 +20,10 @@ namespace core_reportbuilder\local\entities;
 
 use context_course;
 use context_helper;
-use core_tag_tag;
 use core_reportbuilder\local\filters\boolean_select;
 use core_reportbuilder\local\filters\course_selector;
 use core_reportbuilder\local\filters\date;
 use core_reportbuilder\local\filters\select;
-use core_reportbuilder\local\filters\tags;
 use core_reportbuilder\local\filters\text;
 use core_reportbuilder\local\helpers\custom_fields;
 use core_reportbuilder\local\helpers\format;
@@ -202,7 +200,7 @@ class course extends base {
      *
      * @return string[]
      */
-    private function get_tag_joins(): array {
+    public function get_tag_joins(): array {
         $course = $this->get_table_alias('course');
         $taginstance = $this->get_table_alias('tag_instance');
         $tag = $this->get_table_alias('tag');
@@ -225,7 +223,8 @@ class course extends base {
      * @return column[]
      */
     protected function get_all_columns(): array {
-        $columns = [];
+        global $DB;
+
         $coursefields = $this->get_course_fields();
         $tablealias = $this->get_table_alias('course');
         $contexttablealias = $this->get_table_alias('context');
@@ -271,14 +270,21 @@ class course extends base {
         }
 
         foreach ($coursefields as $coursefield => $coursefieldlang) {
+            $columntype = $this->get_course_field_type($coursefield);
+
+            $columnfieldsql = "{$tablealias}.{$coursefield}";
+            if ($columntype === column::TYPE_LONGTEXT && $DB->get_dbfamily() === 'oracle') {
+                $columnfieldsql = $DB->sql_order_by_text($columnfieldsql, 1024);
+            }
+
             $column = (new column(
                 $coursefield,
                 $coursefieldlang,
                 $this->get_entity_name()
             ))
                 ->add_joins($this->get_joins())
-                ->set_type($this->get_course_field_type($coursefield))
-                ->add_field("$tablealias.$coursefield")
+                ->set_type($columntype)
+                ->add_field($columnfieldsql, $coursefield)
                 ->add_callback([$this, 'format'], $coursefield)
                 ->set_is_sortable($this->is_sortable($coursefield));
 
@@ -295,22 +301,6 @@ class course extends base {
 
             $columns[] = $column;
         }
-
-        // Tags.
-        $tag = $this->get_table_alias('tag');
-        $columns[] = (new column(
-            'tags',
-            new lang_string('tags'),
-            $this->get_entity_name()
-        ))
-            ->add_joins($this->get_joins())
-            ->add_joins($this->get_tag_joins())
-            ->set_type(column::TYPE_TEXT)
-            ->add_fields("{$tag}.name, {$tag}.rawname")
-            ->set_is_sortable(true)
-            ->add_callback(static function($value, stdClass $tag): string {
-                return core_tag_tag::make_display_name($tag);
-            });
 
         return $columns;
     }
@@ -362,22 +352,6 @@ class course extends base {
 
             $filters[] = $filter;
         }
-
-        // Tags.
-        $tag = $this->get_table_alias('tag');
-        $filters[] = (new filter(
-            tags::class,
-            'tags',
-            new lang_string('tags'),
-            $this->get_entity_name(),
-            "{$tag}.id"
-        ))
-            ->add_joins($this->get_joins())
-            ->add_joins($this->get_tag_joins())
-            ->set_options([
-                'component' => 'core',
-                'itemtype' => 'course',
-            ]);
 
         // We add our own custom course selector filter.
         $filters[] = (new filter(

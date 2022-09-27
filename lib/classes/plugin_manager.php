@@ -1850,7 +1850,10 @@ class core_plugin_manager {
             ),
 
             'datapreset' => array(
-                'imagegallery'
+                'imagegallery',
+                'journal',
+                'proposals',
+                'resources',
             ),
 
             'fileconverter' => array(

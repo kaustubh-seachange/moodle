@@ -30,6 +30,8 @@
 
 use mod_data\manager;
 use mod_data\preset;
+use mod_data\output\action_bar;
+use mod_data\output\preset_preview;
 
 require_once('../../config.php');
 require_once($CFG->dirroot.'/mod/data/lib.php');
@@ -53,8 +55,8 @@ if ($id) {
 }
 
 $action = optional_param('action', 'view', PARAM_ALPHA); // The page action.
-$allowedactions = ['view', 'delete', 'confirmdelete', 'import', 'importzip', 'finishimport',
-    'export'];
+$allowedactions = ['view', 'import', 'importzip', 'finishimport',
+    'export', 'preview'];
 if (!in_array($action, $allowedactions)) {
     throw new moodle_exception('invalidaccess');
 }
@@ -71,6 +73,7 @@ $PAGE->set_title(get_string('course') . ': ' . $course->fullname);
 $PAGE->set_heading($course->fullname);
 $PAGE->force_settings_menu(true);
 $PAGE->activityheader->disable();
+$PAGE->requires->js_call_amd('mod_data/deletepreset', 'init');
 
 // fill in missing properties needed for updating of instance
 $data->course     = $cm->course;
@@ -85,7 +88,10 @@ if ($action === 'export') {
         throw new \moodle_exception('headersent');
     }
 
-    $preset = preset::create_from_instance($manager, $data->name);
+    // Check if we should export a given preset or the current one.
+    $presetname = optional_param('presetname', $data->name, PARAM_FILE);
+
+    $preset = preset::create_from_instance($manager, $presetname);
     $exportfile = $preset->export();
     $exportfilename = basename($exportfile);
     header("Content-Type: application/download\n");
@@ -111,6 +117,28 @@ if ($formimportzip->is_cancelled()) {
     redirect(new moodle_url('/mod/data/preset.php', ['d' => $data->id]));
 }
 
+// Preset preview injects CSS and JS to the page and should be done before the page header.
+if ($action === 'preview') {
+    $fullname = optional_param('fullname', '', PARAM_PATH); // The directory the preset is in.
+    $templatename = optional_param('template', 'listtemplate', PARAM_ALPHA);
+    // Find out preset owner userid and shortname.
+    $preset = preset::create_from_fullname($manager, $fullname);
+    // Validate if the user can view this preset.
+    if (!$manager->can_view_preset($preset)) {
+        throw new \moodle_exception('cannotaccesspresentsother', manager::PLUGINNAME);
+    }
+    $preview = new preset_preview($manager, $preset, $templatename);
+    $preview->prepare_page($PAGE);
+    // Print the preview screen.
+    echo $OUTPUT->header();
+    $actionbar = new action_bar($data->id, $url);
+    echo $actionbar->get_presets_preview_action_bar($manager, $fullname, $templatename);
+    echo $OUTPUT->heading(ucfirst($preset->name), 2, 'mb-4');
+    echo $renderer->render($preview);
+    echo $OUTPUT->footer();
+    exit(0);
+}
+
 echo $OUTPUT->header();
 
 if ($formdata = $formimportzip->get_data()) {
@@ -124,7 +152,7 @@ if ($formdata = $formimportzip->get_data()) {
     exit(0);
 }
 
-if (in_array($action, ['confirmdelete', 'delete', 'finishimport'])) {
+if ($action === 'finishimport') {
     $fullname = optional_param('fullname', '' , PARAM_PATH); // The directory the preset is in.
     // Find out preset owner userid and shortname.
     $parts = explode('/', $fullname, 2);
@@ -132,60 +160,29 @@ if (in_array($action, ['confirmdelete', 'delete', 'finishimport'])) {
     $shortname = empty($parts[1]) ? '' : $parts[1];
     echo html_writer::start_div('overflow-hidden');
 
-    if ($action === 'confirmdelete') {
-        $path = data_preset_path($course, $userid, $shortname);
-        $strwarning = get_string('deletewarning', 'data').'<br />'.$shortname;
-        $optionsyes = [
-            'fullname' => $fullname,
-            'action' => 'delete',
-            'd' => $data->id,
-        ];
-        $optionsno = ['d' => $data->id];
-        echo $OUTPUT->confirm($strwarning, new moodle_url('/mod/data/preset.php', $optionsyes),
-            new moodle_url('/mod/data/preset.php', $optionsno));
-        echo $OUTPUT->footer();
-        exit(0);
-    } else if ($action === 'delete') {
-        if (!confirm_sesskey()) {
-            throw new moodle_exception('invalidsesskey');
-        }
-        $selectedpreset = new stdClass();
-        foreach ($presets as $preset) {
-            if ($preset->shortname == $shortname) {
-                $selectedpreset = $preset;
-            }
-        }
-        if (!isset($selectedpreset->shortname) || !data_user_can_delete_preset($context, $selectedpreset)) {
-            throw new \moodle_exception('invalidrequest');
-        }
-
-        data_delete_site_preset($shortname);
-        $strdeleted = get_string('deleted', 'data');
-        echo $OUTPUT->notification("$shortname $strdeleted", 'notifysuccess');
-    } else if ($action === 'finishimport') {
-        if (!confirm_sesskey()) {
-            throw new moodle_exception('invalidsesskey');
-        }
-        $overwritesettings = optional_param('overwritesettings', false, PARAM_BOOL);
-        if (!$fullname) {
-            $presetdir = $CFG->tempdir.'/forms/'.required_param('directory', PARAM_FILE);
-            if (!file_exists($presetdir) || !is_dir($presetdir)) {
-                throw new \moodle_exception('cannotimport');
-            }
-            $importer = new data_preset_upload_importer($course, $cm, $data, $presetdir);
-        } else {
-            $importer = new data_preset_existing_importer($course, $cm, $data, $fullname);
-        }
-        $importer->import($overwritesettings);
-        $strimportsuccess = get_string('importsuccess', 'data');
-        $straddentries = get_string('addentries', 'data');
-        $strtodatabase = get_string('todatabase', 'data');
-        if (!$DB->get_records('data_records', array('dataid'=>$data->id))) {
-            echo $OUTPUT->notification("$strimportsuccess <a href='edit.php?d=$data->id'>$straddentries</a> $strtodatabase", 'notifysuccess');
-        } else {
-            echo $OUTPUT->notification("$strimportsuccess", 'notifysuccess');
-        }
+    if (!confirm_sesskey()) {
+        throw new moodle_exception('invalidsesskey');
     }
+    $overwritesettings = optional_param('overwritesettings', false, PARAM_BOOL);
+    if (!$fullname) {
+        $presetdir = $CFG->tempdir.'/forms/'.required_param('directory', PARAM_FILE);
+        if (!file_exists($presetdir) || !is_dir($presetdir)) {
+            throw new \moodle_exception('cannotimport');
+        }
+        $importer = new data_preset_upload_importer($course, $cm, $data, $presetdir);
+    } else {
+        $importer = new data_preset_existing_importer($course, $cm, $data, $fullname);
+    }
+    $importer->import($overwritesettings);
+    $strimportsuccess = get_string('importsuccess', 'data');
+    $straddentries = get_string('addentries', 'data');
+    $strtodatabase = get_string('todatabase', 'data');
+    if (!$DB->get_records('data_records', ['dataid' => $data->id])) {
+        echo $OUTPUT->notification("$strimportsuccess <a href='edit.php?d=$data->id'>$straddentries</a> $strtodatabase", 'notifysuccess');
+    } else {
+        echo $OUTPUT->notification("$strimportsuccess", 'notifysuccess');
+    }
+
     echo $OUTPUT->continue_button(new moodle_url('/mod/data/preset.php', ['d' => $data->id]));
     echo html_writer::end_div();
     echo $OUTPUT->footer();

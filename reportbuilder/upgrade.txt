@@ -23,13 +23,25 @@ Information provided here is intended especially for developers.
 * The following local helper methods have been deprecated, their implementation moved to exporters:
   - `audience::get_all_audiences_menu_types` -> `custom_report_audience_cards_exporter`
   - `report::get_available_columns` -> `custom_report_column_cards_exporter`
+* The `custom_report_exporter` class now defines its editor element properties as optional, rather than each of those exporters
+  defining their own properties as optional. In turn, this means the structure of the following external methods will always be
+  present and consistent:
+  - `core_reportbuilder_columns_*`
+  - `core_reportbuilder_conditions_*`
+  - `core_reportbuilder_filters_*`
 * The following permission methods now accept an optional `$context` parameter (default system context):
   - `[require_]can_view_reports_list`
   - `[require_]can_create_report`
 * New method `get_default_condition_values()` in base datasource class, to be overridden by sources that wish to
   define default values for conditions upon report creation.
+* New methods `get_identity_[column|filter]` in user entity, for retrieving user identity field report elements
 * New report filter types:
   - `category` for reports containing course categories
   - `tags` for reports containing entities with support for core_tag API
   - `autocomplete` for reports that contain pre-defined values for selection.
-* The helper method `get_custom_report_content()` now accepts a list of filters and applies them to the report
+* New method `get_sample_values()` added to base filter class, to be overridden in all filter types to support stress testing
+* New test helpers for automated stress testing of report sources:
+  - `datasource_stress_test_columns`
+  - `datasource_stress_test_columns_aggregation`
+  - `datasource_stress_test_conditions`
+* The test helper method `get_custom_report_content()` now accepts a list of filter values and applies them to the report

@@ -786,13 +786,13 @@ function validate_param($param, $type, $allownull=NULL_NOT_ALLOWED, $debuginfo='
  * $options = clean_param($options, PARAM_INT);
  * </code>
  *
- * @param array $param the variable array we are cleaning
+ * @param array|null $param the variable array we are cleaning
  * @param string $type expected format of param after cleaning.
  * @param bool $recursive clean recursive arrays
  * @return array
  * @throws coding_exception
  */
-function clean_param_array(array $param = null, $type, $recursive = false) {
+function clean_param_array(?array $param, $type, $recursive = false) {
     // Convert null to empty array.
     $param = (array)$param;
     foreach ($param as $key => $value) {
@@ -3438,8 +3438,17 @@ function update_user_login_times() {
  * @return bool
  */
 function user_not_fully_set_up($user, $strict = true) {
-    global $CFG;
+    global $CFG, $SESSION, $USER;
     require_once($CFG->dirroot.'/user/profile/lib.php');
+
+    // If the user is setup then store this in the session to avoid re-checking.
+    // Some edge cases are when the users email starts to bounce or the
+    // configuration for custom fields has changed while they are logged in so
+    // we re-check this fully every hour for the rare cases it has changed.
+    if (isset($USER->id) && isset($user->id) && $USER->id === $user->id &&
+         isset($SESSION->fullysetupstrict) && (time() - $SESSION->fullysetupstrict) < HOURSECS) {
+        return false;
+    }
 
     if (isguestuser($user)) {
         return false;
@@ -3456,6 +3465,9 @@ function user_not_fully_set_up($user, $strict = true) {
         }
         if (!profile_has_required_custom_fields_set($user->id)) {
             return true;
+        }
+        if (isset($USER->id) && isset($user->id) && $USER->id === $user->id) {
+            $SESSION->fullysetupstrict = time();
         }
     }
 
@@ -4555,9 +4567,10 @@ function authenticate_user_login($username, $password, $ignorelockout=false, &$f
  * - this function does not set any cookies any more!
  *
  * @param stdClass $user
+ * @param array $extrauserinfo
  * @return stdClass A {@link $USER} object - BC only, do not use
  */
-function complete_user_login($user) {
+function complete_user_login($user, array $extrauserinfo = []) {
     global $CFG, $DB, $USER, $SESSION;
 
     \core\session\manager::login_user($user);
@@ -4577,7 +4590,10 @@ function complete_user_login($user) {
         array(
             'userid' => $USER->id,
             'objectid' => $USER->id,
-            'other' => array('username' => $USER->username),
+            'other' => [
+                'username' => $USER->username,
+                'extrauserinfo' => $extrauserinfo
+            ]
         )
     );
     $event->trigger();

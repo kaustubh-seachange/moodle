@@ -11758,25 +11758,25 @@ ul {
   width: 100%;
   color: #1d2125; }
 
-.dropdown-item:active, .dropdown-item:hover, .dropdown-item:focus, .dropdown-item:focus-within {
+.dropdown-item.active, .dropdown-item:active, .dropdown-item:hover, .dropdown-item:focus, .dropdown-item:focus-within {
   outline: 0;
   background-color: #0f6cbf;
   color: #fff; }
-  .dropdown-item:active a, .dropdown-item:hover a, .dropdown-item:focus a, .dropdown-item:focus-within a {
+  .dropdown-item.active a, .dropdown-item:active a, .dropdown-item:hover a, .dropdown-item:focus a, .dropdown-item:focus-within a {
     color: #fff; }
 
-.dropdown-item[aria-current="true"] {
+.dropdown-item[aria-current="true"], .dropdown-item[aria-selected="true"] {
   position: relative;
   display: flex;
   align-items: center; }
-  .dropdown-item[aria-current="true"]:before {
+  .dropdown-item[aria-current="true"]:before, .dropdown-item[aria-selected="true"]:before {
     display: inline-block;
     font: normal normal normal 14px/1 FontAwesome;
     font-size: inherit;
     text-rendering: auto;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    content: "";
+    content: "";
     position: absolute;
     left: 0.4rem;
     font-size: 0.7rem; }
@@ -12259,6 +12259,25 @@ body.dragging .dragging {
   font-size: 9px;
   width: 9px;
   border: 0; }
+
+.select-menu li:first-child ul[role="group"] {
+  padding: 0; }
+
+.select-menu ul[role="group"] {
+  padding: 0.3rem 0 0 0;
+  margin: 0; }
+  .select-menu ul[role="group"] li:first-child {
+    cursor: default;
+    color: #6a737b;
+    padding: 0.25rem 1.5rem;
+    display: block; }
+  .select-menu ul[role="group"] .dropdown-item {
+    padding-left: 2.5rem; }
+
+.select-menu .dropdown-item {
+  cursor: pointer; }
+  .select-menu .dropdown-item[aria-selected="true"] {
+    font-weight: bold; }
 
 .icon {
   font-size: 16px;
@@ -19368,7 +19387,6 @@ p.arrow_button {
   left: 40vw; }
 
 .path-grade-report-grader #region-main {
-  overflow-x: visible;
   min-width: 100%;
   width: auto;
   display: flex;
@@ -19390,6 +19408,9 @@ p.arrow_button {
 .path-grade-report-grader .gradefail,
 .path-grade-report-user .gradefail {
   color: #ca3120; }
+
+.path-grade #region-main {
+  overflow-x: visible; }
 
 #page-grade-grading-manage #activemethodselector label {
   display: inline-block; }
@@ -21240,6 +21261,8 @@ div.editor_atto_toolbar button .icon {
 */
 .reportbuilder-report-container {
   min-width: 0; }
+  .reportbuilder-report-container button[data-action="toggle-edit-preview"] .loading-icon {
+    margin-left: .5rem; }
 
 .reportbuilder-editor-table-container {
   overflow-x: auto; }
@@ -21726,6 +21749,10 @@ div.editor_atto_toolbar button .icon {
     margin-bottom: 25px; }
   .tertiary-navigation .navitem:not(:last-child) {
     margin-right: 20px; }
+  .tertiary-navigation .tertiary-navigation-selector .dropdown-toggle {
+    padding: 0;
+    font-size: 1.4rem;
+    font-weight: bold; }
 
 @media print {
   .tertiary-navigation {

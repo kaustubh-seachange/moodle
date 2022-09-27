@@ -212,6 +212,7 @@ $string['excluded_help'] = 'If ticked, the grade will not be included in any agg
 $string['expand'] = 'Expand category';
 $string['expandcriterion'] = 'Expand criterion';
 $string['export'] = 'Export';
+$string['exportas'] = 'Export as';
 $string['exportalloutcomes'] = 'Export all outcomes';
 $string['exportfeedback'] = 'Include feedback in export';
 $string['exportfeedback_desc'] = 'This can be overridden during export.';
@@ -261,6 +262,7 @@ $string['gradebookcalculationswarning'] = 'Note: Some errors have been detected 
 
 The newer version is {$a->currentversion}; you are using gradebook version {$a->gradebookversion}. You can see a list of changes in <a href="{$a->url}">Gradebook calculation changes</a>.';
 $string['gradebookhiddenerror'] = 'The gradebook is currently set to hide everything from students.';
+$string['gradebooknavigationmenu'] = 'Gradebook navigation menu';
 $string['gradebookhistories'] = 'Grade histories';
 $string['gradebooksetup'] = 'Gradebook setup';
 $string['gradeboundary'] = 'Letter grade boundary';
@@ -400,6 +402,7 @@ $string['identifier'] = 'Identify user by';
 $string['idnumbers'] = 'ID numbers';
 $string['ignore'] = 'Ignore';
 $string['import'] = 'Import';
+$string['importas'] = 'Import as';
 $string['importcsv'] = 'Import CSV';
 $string['importcsv_help'] = 'Grades can be imported via a CSV file with format as follows:
 
