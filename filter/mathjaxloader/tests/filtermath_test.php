@@ -38,9 +38,9 @@ class filtermath_test extends \advanced_testcase {
      * @param string $inputtext The text given by the user.
      * @param string $expected The expected output after filtering.
      *
-     * @dataProvider test_math_filtering_inputs
+     * @dataProvider math_filtering_inputs
      */
-    public function test_math_filtering($inputtext, $expected) {
+    public function test_math_filtering($inputtext, $expected): void {
         $filter = new filter_mathjaxloader(\context_system::instance(), []);
         $this->assertEquals($expected, $filter->filter($inputtext));
     }
@@ -50,7 +50,7 @@ class filtermath_test extends \advanced_testcase {
      *
      * @return array of [inputtext, expectedoutput] tuples.
      */
-    public function test_math_filtering_inputs() {
+    public function math_filtering_inputs() {
         return [
             // One inline formula.
             ['Some inline math \\( y = x^2 \\).',

@@ -57,7 +57,7 @@ class qtype_numerical extends question_type {
      * @param string $x a string
      * @return bool whether $x is a number that the numerical question type can interpret.
      */
-    public static function is_valid_number(string $x) : bool {
+    public static function is_valid_number(string $x): bool {
         $ap = new qtype_numerical_answer_processor(array());
         list($value, $unit) = $ap->apply_units($x);
         return !is_null($value) && !$unit;
@@ -647,10 +647,14 @@ class qtype_numerical_answer_processor {
      * default unit, by using the given unit multiplier.
      *
      * @param string $response a value, optionally with a unit.
-     * @return array(numeric, sting) the value with the unit stripped, and normalised
+     * @return array(numeric, string, multiplier) the value with the unit stripped, and normalised
      *      by the unit multiplier, if any, and the unit string, for reference.
      */
-    public function apply_units($response, $separateunit = null) {
+    public function apply_units($response, $separateunit = null): array {
+        if ($response === null || trim($response) === '') {
+            return [null, null, null];
+        }
+
         // Strip spaces (which may be thousands separators) and change other forms
         // of writing e to e.
         $response = str_replace(' ', '', $response);

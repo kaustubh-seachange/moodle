@@ -18,6 +18,7 @@ namespace core_grades;
 
 use grade_plugin_return;
 use grade_report_grader;
+use mod_quiz\quiz_settings;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -29,6 +30,7 @@ require_once($CFG->dirroot.'/grade/report/grader/lib.php');
  * Tests grade_report_grader (the grader report)
  *
  * @package  core_grades
+ * @covers   \grade_report_grader
  * @category test
  * @copyright 2012 Andrew Davis
  * @license  http://www.gnu.org/copyleft/gpl.html GNU Public License
@@ -40,7 +42,7 @@ class report_graderlib_test extends \advanced_testcase {
      *
      * process_data() processes submitted grade and feedback data
      */
-    public function test_process_data() {
+    public function test_process_data(): void {
         global $DB, $CFG;
 
         $this->resetAfterTest(true);
@@ -110,7 +112,7 @@ class report_graderlib_test extends \advanced_testcase {
         $this->assertEquals($studentgrade->finalgrade, $toobig);
     }
 
-    public function test_collapsed_preferences() {
+    public function test_collapsed_preferences(): void {
         $this->resetAfterTest(true);
 
         $emptypreferences = array('aggregatesonly' => array(), 'gradesonly' => array());
@@ -237,7 +239,7 @@ class report_graderlib_test extends \advanced_testcase {
      * @covers \grade_report_grader::get_collapsed_preferences
      * @covers \grade_report_grader::filter_collapsed_categories
      */
-    public function test_old_collapsed_preferences() {
+    public function test_old_collapsed_preferences(): void {
         $this->resetAfterTest(true);
 
         $user1 = $this->getDataGenerator()->create_user();
@@ -457,7 +459,7 @@ class report_graderlib_test extends \advanced_testcase {
      * Previously, with an ungraded quiz (which results in a grade item with type GRADETYPE_NONE)
      * there was a bug in get_right_rows in some situations.
      */
-    public function test_get_right_rows() {
+    public function test_get_right_rows(): void {
         global $USER, $DB;
         $this->resetAfterTest(true);
 
@@ -477,8 +479,7 @@ class report_graderlib_test extends \advanced_testcase {
 
         // Set the grade for the second one to 0 (note, you have to do this after creating it,
         // otherwise it doesn't create an ungraded grade item).
-        $ungradedquiz->instance = $ungradedquiz->id;
-        quiz_set_grade(0, $ungradedquiz);
+        quiz_settings::create($ungradedquiz->id)->get_grade_calculator()->update_quiz_maximum_grade(0);
 
         // Set current user.
         $this->setUser($manager);
@@ -516,6 +517,47 @@ class report_graderlib_test extends \advanced_testcase {
         $report->load_final_grades();
         $result = $report->get_right_rows(false);
         $this->assertCount(3, $result);
+    }
+
+    /**
+     * Test loading report users when per page preferences are set
+     */
+    public function test_load_users_paging_preference(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+
+        // The report users will default to sorting by their lastname.
+        $user1 = $this->getDataGenerator()->create_and_enrol($course, 'student', ['lastname' => 'Apple']);
+        $user2 = $this->getDataGenerator()->create_and_enrol($course, 'student', ['lastname' => 'Banana']);
+        $user3 = $this->getDataGenerator()->create_and_enrol($course, 'student', ['lastname' => 'Carrot']);
+
+        // Set to empty string.
+        $report = $this->create_report($course);
+        $report->set_pref('studentsperpage', '');
+        $users = $report->load_users();
+        $this->assertEquals([$user1->id, $user2->id, $user3->id], array_column($users, 'id'));
+
+        // Set to valid value.
+        $report = $this->create_report($course);
+        $report->set_pref('studentsperpage', 2);
+        $users = $report->load_users();
+        $this->assertEquals([$user1->id, $user2->id], array_column($users, 'id'));
+    }
+
+    /**
+     * Test getting students per page report preference
+     */
+    public function test_get_students_per_page(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+
+        $report = $this->create_report($course);
+        $report->set_pref('studentsperpage', 10);
+
+        $perpage = $report->get_students_per_page();
+        $this->assertSame(10, $perpage);
     }
 
     private function create_grade_category($course) {

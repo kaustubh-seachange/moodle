@@ -22,12 +22,10 @@
  */
 
 import * as repository from './repository';
-import {exception as displayException} from 'core/notification';
+import {exception as displayException, saveCancelPromise} from 'core/notification';
 import {prefetchStrings} from 'core/prefetch';
-import {get_string as getString, get_strings as getStrings} from 'core/str';
+import {getString, getStrings} from 'core/str';
 import {addIconToContainerWithPromise} from 'core/loadingicon';
-import ModalFactory from 'core/modal_factory';
-import ModalEvents from 'core/modal_events';
 import Pending from 'core/pending';
 
 const stringsWithKeys = {
@@ -53,9 +51,12 @@ const getStringsForYui = () => {
 
     // Return an object with the matching string keys (we want an object with {<stringkey>: <stringvalue>...}).
     return getStrings(stringMap)
-        .then((stringArray) => Object.assign({}, ...Object.keys(stringsWithKeys).map(
-            (key, index) => ({[key]: stringArray[index]})))
-        ).catch();
+        .then((stringArray) => Object.assign(
+            {},
+            ...Object.keys(stringsWithKeys).map(
+                (key, index) => ({[key]: stringArray[index]})
+            )
+        ));
 };
 
 const getYuiInstance = lang => new Promise(resolve => {
@@ -99,6 +100,9 @@ const getTableNode = tableSelector => document.querySelector(tableSelector);
 
 const fetchRecordingData = tableSelector => {
     const tableNode = getTableNode(tableSelector);
+    if (tableNode === null) {
+        return Promise.resolve(false);
+    }
 
     if (tableNode.dataset.importMode) {
         return repository.fetchRecordingsToImport(
@@ -168,7 +172,7 @@ const getDataTableFunctions = (tableId, searchFormId, dataTable) => {
         }));
     };
 
-    const requestAction = (element) => {
+    const requestAction = async(element) => {
         const getDataFromAction = (element, dataType) => {
             const dataElement = element.closest(`[data-${dataType}]`);
             if (dataElement) {
@@ -202,36 +206,19 @@ const getDataTableFunctions = (tableId, searchFormId, dataTable) => {
         payload.additionaloptions = JSON.stringify(payload.additionaloptions);
         if (element.dataset.requireConfirmation === "1") {
             // Create the confirmation dialogue.
-            return new Promise((resolve) =>
-                ModalFactory.create({
-                    title: getString('confirm'),
-                    body: recordingConfirmationMessage(payload),
-                    type: ModalFactory.types.SAVE_CANCEL
-                }).then(async(modal) => {
-                    modal.setSaveButtonText(await getString('ok', 'moodle'));
-
-                    // Handle save event.
-                    modal.getRoot().on(ModalEvents.save, () => {
-                        resolve(true);
-                    });
-
-                    // Handle hidden event.
-                    modal.getRoot().on(ModalEvents.hidden, () => {
-                        // Destroy when hidden.
-                        modal.destroy();
-                        resolve(false);
-                    });
-
-                    modal.show();
-
-                    return modal;
-                }).catch(Notification.exception)
-            ).then((proceed) =>
-                proceed ? repository.updateRecording(payload) : () => null
-            );
-        } else {
-            return repository.updateRecording(payload);
+            try {
+                await saveCancelPromise(
+                    getString('confirm'),
+                    recordingConfirmationMessage(payload),
+                    getString('ok', 'moodle'),
+                );
+            } catch {
+                // User cancelled the dialogue.
+                return;
+            }
         }
+
+        return repository.updateRecording(payload);
     };
 
     const recordingConfirmationMessage = async(data) => {
@@ -292,9 +279,8 @@ const getDataTableFunctions = (tableId, searchFormId, dataTable) => {
 
             requestAction(clickedLink)
                 .then(refreshTableData)
-                .catch(displayException)
                 .then(iconPromise.resolve)
-                .catch();
+                .catch(displayException);
         }
     };
 
@@ -405,7 +391,10 @@ const setupDatatable = (tableId, searchFormId, response) => {
  * @param {String} searchFormId The Id of the relate.
  */
 export const init = (tableId, searchFormId) => {
+    const pendingPromise = new Pending('mod_bigbluebuttonbn/recordings:init');
+
     fetchRecordingData(tableId)
         .then(response => setupDatatable(tableId, searchFormId, response))
+        .then(() => pendingPromise.resolve())
         .catch(displayException);
 };

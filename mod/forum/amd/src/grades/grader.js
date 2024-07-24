@@ -60,12 +60,13 @@ const getContentForUserIdFunction = (cmid, experimentalDisplayMode) => (userid) 
  * Curried function with CMID set, this is then used in unified grader as a fetch users call.
  * The function curried fetches all users in a course for a given CMID.
  *
- * @param {Number} cmid
+ * @param {Number} courseID
  * @param {Number} groupID
+ * @param {Boolean} onlyActive Whether to fetch only the active enrolled users or all enrolled users in the course.
  * @return {Array} Array of users for a given context.
  */
-const getUsersForCmidFunction = (cmid, groupID) => async() => {
-    const context = await CourseRepository.getUsersFromCourseModuleID(cmid, groupID);
+const getGradableUsersForCourseidFunction = (courseID, groupID, onlyActive) => async() => {
+    const context = await CourseRepository.getGradableUsersFromCourseID(courseID, groupID, onlyActive);
 
     return context.users;
 };
@@ -128,9 +129,10 @@ const launchWholeForumGrading = async(rootNode, {
     );
 
     const groupID = data.group ? data.group : 0;
+    const onlyActive = data.gradeOnlyActiveUsers;
 
     await Grader.launch(
-        getUsersForCmidFunction(data.cmid, groupID),
+        getGradableUsersForCourseidFunction(data.courseId, groupID, onlyActive),
         getContentForUserIdFunction(data.cmid, data.experimentalDisplayMode == "1"),
         gradingPanelFunctions.getter,
         gradingPanelFunctions.setter,

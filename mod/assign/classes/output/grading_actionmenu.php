@@ -24,6 +24,8 @@
 
 namespace mod_assign\output;
 
+use assign;
+use context_module;
 use templatable;
 use renderable;
 use moodle_url;
@@ -66,13 +68,52 @@ class grading_actionmenu implements templatable, renderable {
      * @return array Data to render.
      */
     public function export_for_template(\renderer_base $output): array {
-        $downloadall = '';
+        global $PAGE;
+
+        $course = $PAGE->course;
+        $data = [];
+
+        $context = context_module::instance($this->cmid);
+        $assign = new assign($context, null, null);
+        $assignid = $assign->get_instance()->id;
+
         if ($this->submissionpluginenabled && $this->submissioncount) {
-            $downloadall = (new moodle_url('/mod/assign/view.php', ['id' => $this->cmid, 'action' => 'downloadall']))->out(false);
+            $data['downloadall'] = (
+                new moodle_url('/mod/assign/view.php', ['id' => $this->cmid, 'action' => 'downloadall'])
+            )->out(false);
         }
-        return [
-            'back' => (new moodle_url('/mod/assign/view.php', ['id' => $this->cmid]))->out(false),
-            'downloadall' => $downloadall
-        ];
+
+        $userid = optional_param('userid', null, PARAM_INT);
+        // If the user ID is set, it indicates that a user has been selected. In this case, override the user search
+        // string with the full name of the selected user.
+        $usersearch = $userid ? fullname(\core_user::get_user($userid)) : optional_param('search', '', PARAM_NOTAGS);
+
+        $actionbarrenderer = $PAGE->get_renderer('core_course', 'actionbar');
+        $resetlink = new moodle_url('/mod/assign/view.php', ['id' => $this->cmid, 'action' => 'grading']);
+        $groupid = groups_get_course_group($course, true);
+        $userselector = new \core_course\output\actionbar\user_selector(
+            course: $course,
+            resetlink: $resetlink,
+            userid: $userid,
+            groupid: $groupid,
+            usersearch: $usersearch,
+            instanceid: $assignid
+        );
+        $data['userselector'] = $actionbarrenderer->render($userselector);
+
+        if ($course->groupmode) {
+            $data['groupselector'] = $actionbarrenderer->render(new \core_course\output\actionbar\group_selector($course));
+        }
+
+        if (groups_get_course_group($course)) {
+            $reset = new moodle_url('/mod/assign/view.php', [
+                'id' => $this->cmid,
+                'action' => 'grading',
+                'group' => 0,
+            ]);
+            $data['pagereset'] = $reset->out(false);
+        }
+
+        return $data;
     }
 }

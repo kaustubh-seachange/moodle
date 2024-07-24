@@ -40,7 +40,7 @@ class skip_future_documents_iterator_test extends \basic_testcase {
     /**
      * Test normal case with all documents in the past.
      */
-    public function test_iterator_all_in_past() {
+    public function test_iterator_all_in_past(): void {
         $past = strtotime('2017-11-01');
         $documents = [
             self::make_doc($past, 1),
@@ -55,7 +55,7 @@ class skip_future_documents_iterator_test extends \basic_testcase {
      * Confirm that the iterator does not call its parent iterator current() function too many
      * times.
      */
-    public function test_iterator_performance() {
+    public function test_iterator_performance(): void {
         $counter = new test_counting_iterator();
         $iterator = new skip_future_documents_iterator($counter);
         $items = 0;
@@ -70,14 +70,14 @@ class skip_future_documents_iterator_test extends \basic_testcase {
     /**
      * Test with no documents at all.
      */
-    public function test_iterator_empty() {
+    public function test_iterator_empty(): void {
         $this->assertEquals('', self::do_iterator([]));
     }
 
     /**
      * Test if some documents are in the future.
      */
-    public function test_iterator_some_in_future() {
+    public function test_iterator_some_in_future(): void {
         $past = strtotime('2017-11-01');
         $future = time() + 1000;
         $documents = [
@@ -92,7 +92,7 @@ class skip_future_documents_iterator_test extends \basic_testcase {
     /**
      * Test if all documents are in the future.
      */
-    public function test_iterator_all_in_future() {
+    public function test_iterator_all_in_future(): void {
         $future = time() + 1000;
         $documents = [
             self::make_doc($future, 1),
@@ -105,7 +105,7 @@ class skip_future_documents_iterator_test extends \basic_testcase {
     /**
      * Test when some documents return error.
      */
-    public function test_iterator_some_false() {
+    public function test_iterator_some_false(): void {
         $past = strtotime('2017-11-01');
         $documents = [
             self::make_doc($past, 1),
@@ -119,7 +119,7 @@ class skip_future_documents_iterator_test extends \basic_testcase {
     /**
      * Test when all documents return error.
      */
-    public function test_iterator_all_false() {
+    public function test_iterator_all_false(): void {
         $documents = [
             false,
             false,
@@ -132,7 +132,7 @@ class skip_future_documents_iterator_test extends \basic_testcase {
     /**
      * Test iterator with all cases.
      */
-    public function test_iterator_past_false_and_future() {
+    public function test_iterator_past_false_and_future(): void {
         $past = strtotime('2017-11-01');
         $future = time() + 1000;
         $documents = [
@@ -202,6 +202,7 @@ class test_counting_iterator implements \Iterator {
      *
      * @return mixed Can return any type.
      */
+    #[\ReturnTypeWillChange]
     public function current() {
         $this->count++;
         return false;
@@ -219,7 +220,7 @@ class test_counting_iterator implements \Iterator {
     /**
      * Goes on to the next element.
      */
-    public function next() {
+    public function next(): void {
         $this->pos++;
     }
 
@@ -228,6 +229,7 @@ class test_counting_iterator implements \Iterator {
      *
      * @throws \coding_exception Always
      */
+    #[\ReturnTypeWillChange]
     public function key() {
         throw new \coding_exception('Unsupported');
     }
@@ -237,14 +239,14 @@ class test_counting_iterator implements \Iterator {
      *
      * @return bool True if still valid
      */
-    public function valid() {
+    public function valid(): bool {
         return $this->pos < 3;
     }
 
     /**
      * Rewinds the iterator.
      */
-    public function rewind() {
+    public function rewind(): void {
         $this->pos = 0;
     }
 }

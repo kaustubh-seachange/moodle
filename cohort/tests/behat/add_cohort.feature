@@ -42,8 +42,10 @@ Feature: Add cohorts of users
   Scenario: Add users to a cohort selecting them from the system users list
     When I add "First User (first@example.com)" user to "333" cohort members
     And I add "Second User (second@example.com)" user to "333" cohort members
-    Then I should see "2" in the "#cohorts" "css_element"
-    And I click on "Assign" "link" in the "Test cohort name" "table_row"
+    Then the following should exist in the "reportbuilder-table" table:
+      | Name              | Cohort size  |
+      | Test cohort name  | 2            |
+    And I press "Assign" action in the "Test cohort name" report row
     And the "Current users" select box should contain "First User (first@example.com)"
     And the "Current users" select box should contain "Second User (second@example.com)"
     And the "Current users" select box should not contain "Forth User (forth@example.com)"
@@ -52,7 +54,7 @@ Feature: Add cohorts of users
   Scenario: Add user to cohort using custom user field search
     Given the following config values are set as admin:
       | showuseridentity | email,profile_field_fruit |
-    When I click on "Assign" "link" in the "Test cohort name" "table_row"
+    When I press "Assign" action in the "Test cohort name" report row
     And I set the field "addselect_searchtext" to "Apple"
     And I wait "1" seconds
     Then the "Potential users" select box should contain "First User (first@example.com\, Apple)"
@@ -70,7 +72,7 @@ Feature: Add cohorts of users
       | cohort | user  |
       | 333    | user1 |
       | 333    | user2 |
-    When I click on "Assign" "link" in the "Test cohort name" "table_row"
+    When I press "Assign" action in the "Test cohort name" report row
     And I set the field "removeselect_searchtext" to "Apple"
     And I wait "1" seconds
     Then the "Current users" select box should not contain "Second User (second@example.com\, Banana)"
@@ -90,8 +92,28 @@ Feature: Add cohorts of users
     And I set the field "Cohort" to "Test cohort name [333]"
     And I press "Add to cohort"
     And I navigate to "Users > Accounts > Cohorts" in site administration
-    Then I should see "2" in the "#cohorts" "css_element"
-    And I click on "Assign" "link" in the "Test cohort name" "table_row"
+    Then the following should exist in the "reportbuilder-table" table:
+      | Name              | Cohort size  |
+      | Test cohort name  | 2            |
+    And I press "Assign" action in the "Test cohort name" report row
+    And the "Current users" select box should contain "Third User (third@example.com)"
+    And the "Current users" select box should contain "Forth User (forth@example.com)"
+    And the "Current users" select box should not contain "First User (first@example.com)"
+
+  @javascript
+  Scenario: Add users to a cohort using a user list bulk action
+    When I navigate to "Users > Accounts > Browse list of users" in site administration
+    And I click on "Third User" "checkbox"
+    And I click on "Forth User" "checkbox"
+    And I set the field "Bulk user actions" to "Add to cohort"
+    And I set the field "Cohort" to "Test cohort name [333]"
+    And I press "Add to cohort"
+    And I should see "Browse list of users"
+    And I navigate to "Users > Accounts > Cohorts" in site administration
+    Then the following should exist in the "reportbuilder-table" table:
+      | Name              | Cohort size  |
+      | Test cohort name  | 2            |
+    And I press "Assign" action in the "Test cohort name" report row
     And the "Current users" select box should contain "Third User (third@example.com)"
     And the "Current users" select box should contain "Forth User (forth@example.com)"
     And the "Current users" select box should not contain "First User (first@example.com)"
@@ -99,8 +121,17 @@ Feature: Add cohorts of users
   @javascript
   Scenario: Edit cohort name in-place
     When I navigate to "Users > Accounts > Cohorts" in site administration
+    Then the following should exist in the "reportbuilder-table" table:
+      | Name             | Cohort ID | Description             |
+      | Test cohort name | 333       | Test cohort description |
     And I set the field "Edit cohort name" to "Students cohort"
-    Then I should not see "Test cohort name"
-    And I should see "Students cohort"
-    And I navigate to "Users > Accounts > Cohorts" in site administration
-    And I should see "Students cohort"
+    And the following should not exist in the "reportbuilder-table" table:
+      | Name             | Cohort ID | Description             |
+      | Test cohort name | 333       | Test cohort description |
+    And the following should exist in the "reportbuilder-table" table:
+      | Name            | Cohort ID | Description             |
+      | Students cohort | 333       | Test cohort description |
+    And I reload the page
+    And the following should exist in the "reportbuilder-table" table:
+      | Name            | Cohort ID | Description             |
+      | Students cohort | 333       | Test cohort description |

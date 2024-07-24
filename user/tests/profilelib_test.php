@@ -24,14 +24,21 @@ namespace core_user;
  * @licensehttp://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class profilelib_test extends \advanced_testcase {
+
+    /**
+     * Load required test libraries
+     */
+    public static function setUpBeforeClass(): void {
+        global $CFG;
+        require_once("{$CFG->dirroot}/user/profile/lib.php");
+        parent::setUpBeforeClass();
+    }
+
     /**
      * Tests profile_get_custom_fields function and checks it is consistent
      * with profile_user_record.
      */
-    public function test_get_custom_fields() {
-        global $CFG;
-        require_once($CFG->dirroot . '/user/profile/lib.php');
-
+    public function test_get_custom_fields(): void {
         $this->resetAfterTest();
         $user = $this->getDataGenerator()->create_user();
 
@@ -50,10 +57,10 @@ class profilelib_test extends \advanced_testcase {
         $this->assertArrayNotHasKey($id1, profile_get_custom_fields(true));
 
         // Check that profile_user_record returns same (no) fields.
-        $this->assertObjectNotHasAttribute('frogdesc', profile_user_record($user->id));
+        $this->assertObjectNotHasProperty('frogdesc', profile_user_record($user->id));
 
         // Check that profile_user_record returns all the fields when requested.
-        $this->assertObjectHasAttribute('frogdesc', profile_user_record($user->id, false));
+        $this->assertObjectHasProperty('frogdesc', profile_user_record($user->id, false));
 
         // Add another custom field, this time of normal text type.
         $id2 = $this->getDataGenerator()->create_custom_profile_field(array(
@@ -69,16 +76,16 @@ class profilelib_test extends \advanced_testcase {
         $this->assertArrayHasKey($id2, profile_get_custom_fields(true));
 
         // Check profile_user_record returns same field.
-        $this->assertObjectHasAttribute('frogname', profile_user_record($user->id));
+        $this->assertObjectHasProperty('frogname', profile_user_record($user->id));
 
         // Check that profile_user_record returns all the fields when requested.
-        $this->assertObjectHasAttribute('frogname', profile_user_record($user->id, false));
+        $this->assertObjectHasProperty('frogname', profile_user_record($user->id, false));
     }
 
     /**
      * Make sure that all profile fields can be initialised without arguments.
      */
-    public function test_default_constructor() {
+    public function test_default_constructor(): void {
         global $DB, $CFG;
         require_once($CFG->dirroot . '/user/profile/definelib.php');
         $datatypes = profile_list_datatypes();
@@ -94,7 +101,7 @@ class profilelib_test extends \advanced_testcase {
     /**
      * Test profile_view function
      */
-    public function test_profile_view() {
+    public function test_profile_view(): void {
         global $USER;
 
         $this->resetAfterTest();
@@ -136,7 +143,7 @@ class profilelib_test extends \advanced_testcase {
     /**
      * Test that {@link user_not_fully_set_up()} takes required custom fields into account.
      */
-    public function test_profile_has_required_custom_fields_set() {
+    public function test_profile_has_required_custom_fields_set(): void {
         global $CFG;
         require_once($CFG->dirroot.'/mnet/lib.php');
 
@@ -204,7 +211,7 @@ class profilelib_test extends \advanced_testcase {
     /**
      * Test that user generator sets the custom profile fields
      */
-    public function test_profile_fields_in_generator() {
+    public function test_profile_fields_in_generator(): void {
         global $CFG;
         require_once($CFG->dirroot.'/mnet/lib.php');
 
@@ -227,16 +234,15 @@ class profilelib_test extends \advanced_testcase {
         $this->assertEquals('Gryffindor', $profilefields1->house);
 
         $profilefields2 = profile_user_record($harry->id);
-        $this->assertObjectHasAttribute('house', $profilefields2);
+        $this->assertObjectHasProperty('house', $profilefields2);
         $this->assertNull($profilefields2->house);
     }
 
     /**
      * Tests the profile_get_custom_field_data_by_shortname function when working normally.
      */
-    public function test_profile_get_custom_field_data_by_shortname_normal() {
-        global $DB, $CFG;
-        require_once($CFG->dirroot . '/user/profile/lib.php');
+    public function test_profile_get_custom_field_data_by_shortname_normal(): void {
+        global $DB;
 
         $this->resetAfterTest();
 
@@ -267,10 +273,7 @@ class profilelib_test extends \advanced_testcase {
     /**
      * Tests the profile_get_custom_field_data_by_shortname function with a field that doesn't exist.
      */
-    public function test_profile_get_custom_field_data_by_shortname_missing() {
-        global $CFG;
-        require_once($CFG->dirroot . '/user/profile/lib.php');
-
+    public function test_profile_get_custom_field_data_by_shortname_missing(): void {
         $this->assertNull(profile_get_custom_field_data_by_shortname('speciality'));
     }
 
@@ -306,10 +309,6 @@ class profilelib_test extends \advanced_testcase {
         bool $casesensitive,
         bool $expectmatch
     ): void {
-        global $CFG;
-
-        require_once("{$CFG->dirroot}/user/profile/lib.php");
-
         $this->resetAfterTest();
 
         $this->getDataGenerator()->create_custom_profile_field([
@@ -327,5 +326,27 @@ class profilelib_test extends \advanced_testcase {
         } else {
             $this->assertNull($customfield);
         }
+    }
+
+    /**
+     * Test profile field loading via profile_get_user_field helper
+     *
+     * @covers ::profile_get_user_field
+     */
+    public function test_profile_get_user_field(): void {
+        $this->resetAfterTest();
+
+        $profilefield = $this->getDataGenerator()->create_custom_profile_field([
+            'shortname' => 'fruit',
+            'name' => 'Fruit',
+            'datatype' => 'text',
+        ]);
+        $user = $this->getDataGenerator()->create_user(['profile_field_fruit' => 'Apple']);
+
+        $fieldinstance = profile_get_user_field('text', $profilefield->id, $user->id);
+        $this->assertInstanceOf(\profile_field_text::class, $fieldinstance);
+        $this->assertEquals($profilefield->id, $fieldinstance->fieldid);
+        $this->assertEquals($user->id, $fieldinstance->userid);
+        $this->assertEquals('Apple', $fieldinstance->data);
     }
 }

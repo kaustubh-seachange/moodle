@@ -26,22 +26,23 @@ Feature: Users can edit approved entries in database activities
       | name           | Test database name |
       | approval       | 1                  |
       | manageapproved | 1                  |
-    And I am on the "Test database name" "data activity" page logged in as teacher1
-    And I add a "Short text" field to "Test database name" database and I fill the form with:
-      | Field name | Test field name |
-      | Field description | Test field description |
-    # To generate the default templates.
-    And I navigate to "Templates" in current page administration
-    And I log out
-    # Add an entry as a student.
-    And I am on the "Test database name" "data activity" page logged in as student1
-    And I add an entry to "Test database name" database with:
-      | Test field name | Student entry |
-    And I press "Save"
-    And I log out
+    And the following "mod_data > fields" exist:
+      | database           | type | name            | description            |
+      | Test database name | text | Test field name | Test field description |
+    And the following "mod_data > templates" exist:
+      | database           | name            |
+      | Test database name | singletemplate  |
+      | Test database name | listtemplate    |
+      | Test database name | addtemplate     |
+      | Test database name | asearchtemplate |
+      | Test database name | rsstemplate     |
+    And the following "mod_data > entries" exist:
+      | database           | user     | Test field name |
+      | Test database name | student1 | Student entry   |
     # Approve the student's entry as a teacher.
     And I am on the "Test database name" "data activity" page logged in as teacher1
-    And I follow "Approve"
+    And I open the action menu in ".defaulttemplate-listentry" "css_element"
+    And I choose "Approve" in the open action menu
     And I log out
     # Make sure the student can still edit their entry after it's approved.
     When I am on the "Test database name" "data activity" page logged in as student1
@@ -58,22 +59,23 @@ Feature: Users can edit approved entries in database activities
       | name           | Test database name |
       | approval       | 1                  |
       | manageapproved | 0                  |
-    And I am on the "Test database name" "data activity" page logged in as teacher1
-    And I add a "Short text" field to "Test database name" database and I fill the form with:
-      | Field name | Test field name |
-      | Field description | Test field description |
-    # To generate the default templates.
-    And I navigate to "Templates" in current page administration
-    And I log out
-    # Add an entry as a student.
-    And I am on the "Test database name" "data activity" page logged in as student1
-    And I add an entry to "Test database name" database with:
-      | Test field name | Student entry |
-    And I press "Save"
-    And I log out
+    And the following "mod_data > fields" exist:
+      | database           | type | name            | description            |
+      | Test database name | text | Test field name | Test field description |
+    And the following "mod_data > templates" exist:
+      | database           | name            |
+      | Test database name | singletemplate  |
+      | Test database name | listtemplate    |
+      | Test database name | addtemplate     |
+      | Test database name | asearchtemplate |
+      | Test database name | rsstemplate     |
+    And the following "mod_data > entries" exist:
+      | database           | user     | Test field name |
+      | Test database name | student1 | Student entry   |
     # Approve the student's entry as a teacher.
     And I am on the "Test database name" "data activity" page logged in as teacher1
-    And I follow "Approve"
+    And I open the action menu in ".defaulttemplate-listentry" "css_element"
+    And I choose "Approve" in the open action menu
     And I log out
     # Make sure the student isn't able to edit their entry after it's approved.
     When I am on the "Test database name" "data activity" page logged in as student1

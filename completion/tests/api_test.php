@@ -23,6 +23,7 @@ namespace core_completion;
  * @category test
  * @copyright 2017 Mark Nelson <markn@moodle.com>
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @covers \core_completion\api
  */
 class api_test extends \advanced_testcase {
 
@@ -30,10 +31,11 @@ class api_test extends \advanced_testcase {
      * Test setup.
      */
     public function setUp(): void {
+        parent::setUp();
         $this->resetAfterTest();
     }
 
-    public function test_update_completion_date_event() {
+    public function test_update_completion_date_event(): void {
         global $CFG, $DB;
 
         $this->setAdminUser();
@@ -72,7 +74,7 @@ class api_test extends \advanced_testcase {
         \core_completion\api::update_completion_date_event($assign->cmid, 'assign', null, $time);
     }
 
-    public function test_update_completion_date_event_update() {
+    public function test_update_completion_date_event_update(): void {
         global $CFG, $DB;
 
         $this->setAdminUser();
@@ -107,7 +109,7 @@ class api_test extends \advanced_testcase {
         $this->assertEquals($time + DAYSECS, $event->timesort);
     }
 
-    public function test_update_completion_date_event_delete() {
+    public function test_update_completion_date_event_delete(): void {
         global $CFG, $DB;
 
         $this->setAdminUser();
@@ -130,7 +132,7 @@ class api_test extends \advanced_testcase {
         $this->assertEquals(0, $DB->count_records('event'));
     }
 
-    public function test_update_completion_date_event_completion_disabled() {
+    public function test_update_completion_date_event_completion_disabled(): void {
         global $CFG, $DB;
 
         $this->setAdminUser();
@@ -150,7 +152,7 @@ class api_test extends \advanced_testcase {
         $this->assertEquals(0, $DB->count_records('event'));
     }
 
-    public function test_update_completion_date_event_update_completion_disabled() {
+    public function test_update_completion_date_event_update_completion_disabled(): void {
         global $CFG, $DB;
 
         $this->setAdminUser();
@@ -188,7 +190,7 @@ class api_test extends \advanced_testcase {
         $this->assertEquals($time, $event->timesort);
     }
 
-    public function test_update_completion_date_event_delete_completion_disabled() {
+    public function test_update_completion_date_event_delete_completion_disabled(): void {
         global $CFG, $DB;
 
         $this->setAdminUser();
@@ -217,7 +219,7 @@ class api_test extends \advanced_testcase {
     /**
      * Test for mark_course_completions_activity_criteria().
      */
-    public function test_mark_course_completions_activity_criteria() {
+    public function test_mark_course_completions_activity_criteria(): void {
         global $DB, $CFG;
         require_once($CFG->dirroot.'/completion/criteria/completion_criteria_activity.php');
         $this->resetAfterTest(true);
@@ -283,8 +285,106 @@ class api_test extends \advanced_testcase {
         $coursecompletionid = \core_completion\api::mark_course_completions_activity_criteria();
         $this->assertEquals(0, $coursecompletionid);
         $actual = $DB->get_records('course_completions');
+        $students = [$student1->id, $student2->id];
         $this->assertEquals(2, count($actual));
-        $this->assertEquals($student1->id, reset($actual)->userid);
-        $this->assertEquals($student2->id, end($actual)->userid);
+        $this->assertContains(reset($actual)->userid, $students);
+        $this->assertContains(end($actual)->userid, $students);
+    }
+
+    /**
+     * Test for mark_course_completions_activity_criteria() with different completionpassgrade settings.
+     */
+    public function test_mark_course_completions_activity_criteria_completion_states(): void {
+        global $DB, $CFG;
+        require_once($CFG->dirroot . '/completion/criteria/completion_criteria_activity.php');
+        $this->resetAfterTest(true);
+
+        $courses[] = $this->getDataGenerator()->create_course(['shortname' => 'completionpassgradenotset',
+            'enablecompletion' => 1]);
+        $courses[] = $this->getDataGenerator()->create_course(['shortname' => 'completionpassgradeset',
+            'enablecompletion' => 1]);
+
+        $student1 = $this->getDataGenerator()->create_user();
+        $student2 = $this->getDataGenerator()->create_user();
+
+        $teacher = $this->getDataGenerator()->create_user();
+        $studentrole = $DB->get_record('role', array('shortname' => 'student'));
+        $teacherrole = $DB->get_record('role', array('shortname' => 'editingteacher'));
+
+        foreach ($courses as $course) {
+            $this->getDataGenerator()->enrol_user($teacher->id, $course->id, $teacherrole->id);
+            $this->getDataGenerator()->enrol_user($student1->id, $course->id, $studentrole->id);
+            $this->getDataGenerator()->enrol_user($student2->id, $course->id, $studentrole->id);
+
+            $completioncriteria = [
+                'completionusegrade' => 1,
+                'gradepass' => 50
+            ];
+
+            if ($course->shortname == 'completionpassgradeset') {
+                $completioncriteria['completionpassgrade'] = 1;
+            }
+
+            /** @var \mod_assign_generator $assigngenerator */
+            $assigngenerator = $this->getDataGenerator()->get_plugin_generator('mod_assign');
+            $assign = $assigngenerator->create_instance([
+                    'course' => $course->id,
+                    'completion' => COMPLETION_ENABLED,
+                ] + $completioncriteria);
+
+            $cmassing = get_coursemodule_from_id('assign', $assign->cmid);
+            $cm = get_coursemodule_from_instance('assign', $assign->id);
+            $c = new \completion_info($course);
+
+            // Add activity completion criteria.
+            $criteriadata = new \stdClass();
+            $criteriadata->id = $course->id;
+            $criteriadata->criteria_activity = array();
+            // Some activities.
+            $criteriadata->criteria_activity[$cmassing->id] = 1;
+            $criterion = new \completion_criteria_activity();
+            $criterion->update_config($criteriadata);
+
+            $this->setUser($teacher);
+
+            // Mark user completions.
+            $completion = new \stdClass();
+            $completion->coursemoduleid = $cm->id;
+            $completion->timemodified = time();
+            $completion->viewed = COMPLETION_NOT_VIEWED;
+            $completion->overrideby = null;
+
+            // Student1 achieved passgrade.
+            $completion->id = 0;
+            $completion->completionstate = COMPLETION_COMPLETE_PASS;
+            $completion->userid = $student1->id;
+            $c->internal_set_data($cm, $completion, true);
+
+            // Student2 has not achieved passgrade.
+            $completion->id = 0;
+            $completion->completionstate = COMPLETION_COMPLETE_FAIL;
+            $completion->userid = $student2->id;
+            $c->internal_set_data($cm, $completion, true);
+
+            $actual = $DB->get_records('course_completions', ['course' => $course->id]);
+            $this->assertEmpty($actual);
+
+            // Run course completions cron.
+            $coursecompletionid = \core_completion\api::mark_course_completions_activity_criteria();
+            $this->assertEquals(0, $coursecompletionid);
+            $actual = $DB->get_records('course_completions', ['course' => $course->id]);
+
+            if ($course->shortname == 'completionpassgradeset') {
+                // Only student1 has completed a course.
+                $this->assertEquals(1, count($actual));
+                $this->assertEquals($student1->id, reset($actual)->userid);
+            } else {
+                // Both students completed a course.
+                $students = [$student1->id, $student2->id];
+                $this->assertEquals(2, count($actual));
+                $this->assertContains(reset($actual)->userid, $students);
+                $this->assertContains(end($actual)->userid, $students);
+            }
+        }
     }
 }

@@ -22,9 +22,7 @@ Feature: Users can use the Image gallery preset
     And I am on the "Mountain landscapes" "data activity" page logged in as teacher1
     And I follow "Presets"
     And I click on "fullname" "radio" in the "Image gallery" "table_row"
-    And I click on "Use preset" "button"
-    And I click on "Continue" "button"
-    And I click on "Continue" "button"
+    And I click on "Use this preset" "button"
     And the following "mod_data > entries" exist:
       | database | user      | title           | description                                  | image             |
       | data1    | student1  | First image     | This is the description text for image 1     | first.png         |
@@ -72,13 +70,15 @@ Feature: Users can use the Image gallery preset
     Given I am on the "Mountain landscapes" "data activity" page logged in as student1
     And "First image" "text" should appear before "Second image" "text"
     When I click on "Advanced search" "checkbox"
+    And I should see "First name"
+    And I should see "Last name"
     And I set the field "title" to "First image"
-    And I press "Save settings"
+    And I click on "Save settings" "button" in the "data_adv_form" "region"
     Then I should see "First image"
     And I should not see "Second image"
     But I set the field "title" to "image"
     And I set the field "Order" to "Descending"
-    And I press "Save settings"
+    And I click on "Save settings" "button" in the "data_adv_form" "region"
     And "Second image" "text" should appear before "First image" "text"
 
   @javascript
@@ -90,3 +90,29 @@ Feature: Users can use the Image gallery preset
     And I press "Save"
     Then I should see "New image"
     And I should see "This is the description for the new image."
+
+  @javascript
+  Scenario: Image gallery. Renaming a field should affect the template
+    Given I am on the "Mountain landscapes" "data activity" page logged in as teacher1
+    And I navigate to "Fields" in current page administration
+    And I open the action menu in "title" "table_row"
+    And I choose "Edit" in the open action menu
+    And I set the field "Field name" to "Edited field name"
+    And I press "Save"
+    And I should see "Field updated"
+    When I navigate to "Database" in current page administration
+    Then I click on "Advanced search" "checkbox"
+    And I should see "Edited field name"
+    And I click on "Add entry" "button"
+    And I should see "Edited field name"
+
+  @javascript
+  Scenario: Image gallery. Has otherfields tag
+    Given the following "mod_data > fields" exist:
+      | database | type | name        | description            |
+      | data1    | text | Extra field | Test field description |
+    And I am on the "Mountain landscapes" "data activity" page logged in as teacher1
+    When I select "Single view" from the "jump" singleselect
+    Then I should see "Extra field"
+    And I click on "Add entry" "button"
+    And I should see "Extra field"

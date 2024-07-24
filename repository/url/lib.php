@@ -38,9 +38,15 @@ require_once(__DIR__.'/locallib.php');
 class repository_url extends repository {
     /** @var int Maximum time of recursion. */
     const MAX_RECURSION_TIME = 5;
+    /** @var int Maximum number of CSS imports. */
+    protected const MAX_CSS_IMPORTS = 10;
+    /** @var int CSS import counter. */
+    protected int $cssimportcounter = 0;
     var $processedfiles = array();
     /** @var int Recursion counter. */
     var $recursioncounter = 0;
+    /** @var string file URL. */
+    public $file_url;
 
     /**
      * @param int $repositoryid
@@ -128,14 +134,14 @@ EOD;
         if (empty($baseurl)) {
             $url = $relativeurl;
         } else {
-            $url = htmlspecialchars_decode(url_to_absolute($baseurl, $relativeurl));
+            $url = htmlspecialchars_decode(url_to_absolute($baseurl, $relativeurl), ENT_COMPAT);
         }
         if (in_array($url, $this->processedfiles)) {
             // Avoid endless recursion for the same URL with same parameters.
             return;
         }
-        // Remove the query string before check.
-        $recursioncheckurl = preg_replace('/\?.*/', '', $url);
+        // Remove the query string and anchors before check.
+        $recursioncheckurl = (new moodle_url($url))->out_omit_querystring();
         if (in_array($recursioncheckurl, $this->processedfiles)) {
             $this->recursioncounter++;
         }
@@ -200,6 +206,11 @@ EOD;
                 }
                 if (!empty($urls['import'])) {
                     foreach ($urls['import'] as $cssurl) {
+                        // Limit the number of CSS imports to avoid infinite imports.
+                        if ($this->cssimportcounter >= self::MAX_CSS_IMPORTS) {
+                            return;
+                        }
+                        $this->cssimportcounter++;
                         $this->parse_file($info['url'], $cssurl, $list);
                     }
                 }
@@ -210,7 +221,7 @@ EOD;
         if (empty($list['list'])) {
             $list['list'] = array();
         }
-        $src = url_to_absolute($baseurl, htmlspecialchars_decode($url));
+        $src = url_to_absolute($baseurl, htmlspecialchars_decode($url, ENT_COMPAT));
         foreach ($list['list'] as $image) {
             if ($image['source'] == $src) {
                 return;

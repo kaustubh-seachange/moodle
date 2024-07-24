@@ -30,7 +30,8 @@ define(
         'core/str',
         'core/url',
         'core/yui',
-        'core/modal_factory',
+        'core/modal_copy_to_clipboard',
+        'core/modal_save_cancel',
         'core/modal_events',
         'core/key_codes',
         'core/log',
@@ -46,7 +47,8 @@ define(
         str,
         url,
         Y,
-        ModalFactory,
+        ModalCopyToClipboard,
+        ModalSaveCancel,
         ModalEvents,
         KeyCodes,
         log,
@@ -59,8 +61,9 @@ define(
         // component compatible formats and the default actions.js won't be necessary anymore.
         // Meanwhile, we filter the migrated actions.
         const componentActions = [
-            'moveSection', 'moveCm', 'addSection', 'deleteSection', 'sectionHide', 'sectionShow',
-            'cmHide', 'cmShow', 'cmStealth',
+            'moveSection', 'moveCm', 'addSection', 'deleteSection', 'cmDelete', 'cmDuplicate', 'sectionHide', 'sectionShow',
+            'cmHide', 'cmShow', 'cmStealth', 'sectionHighlight', 'sectionUnhighlight', 'cmMoveRight', 'cmMoveLeft',
+            'cmNoGroups', 'cmVisibleGroups', 'cmSeparateGroups',
         ];
 
         // The course reactive instance.
@@ -82,6 +85,8 @@ define(
             TOGGLE: '.toggle-display,.dropdown-toggle',
             SECTIONLI: 'li.section',
             SECTIONACTIONMENU: '.section_action_menu',
+            SECTIONACTIONMENUTRIGGER: '.section-actions',
+            SECTIONITEM: '[data-for="section_title"]',
             ADDSECTIONS: '.changenumsections [data-add-sections]',
             SECTIONBADGES: '[data-region="sectionbadges"]',
         };
@@ -331,7 +336,7 @@ define(
                 methodname: 'core_course_edit_module',
                 args: {id: cmid,
                     action: action,
-                    sectionreturn: target.attr('data-sectionreturn') ? target.attr('data-sectionreturn') : 0
+                    sectionreturn: target.attr('data-sectionreturn') ? target.attr('data-sectionreturn') : null
                 }
             }], true);
 
@@ -585,11 +590,11 @@ define(
             if (action === 'hide' || action === 'show') {
                 if (action === 'hide') {
                     sectionElement.addClass('hidden');
-                    setSectionBadge(sectionElement[0], 'hiddenfromstudents', true);
+                    setSectionBadge(sectionElement[0], 'hiddenfromstudents', true, false);
                     replaceActionItem(actionItem, 'i/show',
                         'showfromothers', 'format_' + courseformat, 'show');
                 } else {
-                    setSectionBadge(sectionElement[0], 'hiddenfromstudents', false);
+                    setSectionBadge(sectionElement[0], 'hiddenfromstudents', false, false);
                     sectionElement.removeClass('hidden');
                     replaceActionItem(actionItem, 'i/hide',
                         'hidefromothers', 'format_' + courseformat, 'hide');
@@ -619,13 +624,13 @@ define(
                 replaceActionItem(actionItem, 'i/marked',
                     'highlightoff', 'core', 'removemarker');
                 courseeditor.dispatch('legacySectionAction', action, sectionid);
-                setSectionBadge(sectionElement[0], 'iscurrent', true);
+                setSectionBadge(sectionElement[0], 'iscurrent', true, true);
             } else if (action === 'removemarker') {
                 sectionElement.removeClass('current');
                 replaceActionItem(actionItem, 'i/marker',
                     'highlight', 'core', 'setmarker');
                 courseeditor.dispatch('legacySectionAction', action, sectionid);
-                setSectionBadge(sectionElement[0], 'iscurrent', false);
+                setSectionBadge(sectionElement[0], 'iscurrent', false, true);
             }
         };
 
@@ -690,7 +695,7 @@ define(
          */
         var editSection = function(sectionElement, sectionid, target, courseformat) {
             var action = target.attr('data-action'),
-                sectionreturn = target.attr('data-sectionreturn') ? target.attr('data-sectionreturn') : 0;
+                sectionreturn = target.attr('data-sectionreturn') ? target.attr('data-sectionreturn') : null;
 
             // Filter direct component handled actions.
             if (courseeditor.supportComponents && componentActions.includes(action)) {
@@ -736,8 +741,9 @@ define(
          * @param {JQuery} sectionElement section element we perform action on
          * @param {String} badgetype the type of badge this is for
          * @param {bool} add true to add, false to remove
+         * @param {boolean} removeOther in case of adding a badge, whether to remove all other.
          */
-        var setSectionBadge = function(sectionElement, badgetype, add) {
+        var setSectionBadge = function(sectionElement, badgetype, add, removeOther) {
             const sectionbadges = sectionElement.querySelector(SELECTOR.SECTIONBADGES);
             if (!sectionbadges) {
                 return;
@@ -747,9 +753,11 @@ define(
                 return;
             }
             if (add) {
-                document.querySelectorAll('[data-type="' + badgetype + '"]').forEach((b) => {
-                    b.classList.add('d-none');
-                });
+                if (removeOther) {
+                    document.querySelectorAll('[data-type="' + badgetype + '"]').forEach((b) => {
+                        b.classList.add('d-none');
+                    });
+                }
                 badge.classList.remove('d-none');
             } else {
                 badge.classList.add('d-none');
@@ -950,16 +958,25 @@ define(
                     }
                 });
 
-                // Add a handler for section show/hide actions.
-                $('body').on('click keypress', SELECTOR.SECTIONLI + ' ' +
-                            SELECTOR.SECTIONACTIONMENU + '[data-sectionid] ' +
+                // Add a handler for section action menu.
+                $('body').on('click keypress',
+                            SELECTOR.SECTIONACTIONMENUTRIGGER + '[data-sectionid] ' +
                             'a[data-action]', function(e) {
                     if (e.type === 'keypress' && e.keyCode !== 13) {
                         return;
                     }
                     var actionItem = $(this),
                         sectionElement = actionItem.closest(SELECTOR.SECTIONLI),
-                        sectionId = actionItem.closest(SELECTOR.SECTIONACTIONMENU).attr('data-sectionid');
+                        sectionId = actionItem.closest(SELECTOR.SECTIONACTIONMENUTRIGGER).attr('data-sectionid');
+
+                    if (actionItem.attr('data-action') === 'permalink') {
+                        e.preventDefault();
+                        ModalCopyToClipboard.create({
+                            text: actionItem.attr('href'),
+                        }, str.get_string('sectionlink', 'course')
+                        );
+                        return;
+                    }
 
                     let isExecuted = true;
                     if (actionItem.attr('data-confirm')) {
@@ -978,7 +995,7 @@ define(
 
                 // The section and activity names are edited using inplace editable.
                 // The "update" jQuery event must be captured in order to update the course state.
-                $('body').on('updated', `${SELECTOR.SECTIONLI} [data-inplaceeditable]`, function(e) {
+                $('body').on('updated', `${SELECTOR.SECTIONITEM} [data-inplaceeditable]`, function(e) {
                     if (e.ajaxreturn && e.ajaxreturn.itemid) {
                         const state = courseeditor.state;
                         const section = state.section.get(e.ajaxreturn.itemid);
@@ -999,43 +1016,53 @@ define(
                 }
 
                 // Add a handler for "Add sections" link to ask for a number of sections to add.
-                str.get_string('numberweeks').done(function(strNumberSections) {
-                    var trigger = $(SELECTOR.ADDSECTIONS),
-                        modalTitle = trigger.attr('data-add-sections'),
-                        newSections = trigger.attr('data-new-sections');
+                const trigger = $(SELECTOR.ADDSECTIONS);
+                const modalTitle = trigger.attr('data-add-sections');
+                const newSections = trigger.attr('data-new-sections');
+                str.get_string('numberweeks')
+                .then(function(strNumberSections) {
                     var modalBody = $('<div><label for="add_section_numsections"></label> ' +
                         '<input id="add_section_numsections" type="number" min="1" max="' + newSections + '" value="1"></div>');
                     modalBody.find('label').html(strNumberSections);
-                    ModalFactory.create({
-                        title: modalTitle,
-                        type: ModalFactory.types.SAVE_CANCEL,
-                        body: modalBody.html()
-                    }, trigger)
-                    .done(function(modal) {
-                        var numSections = $(modal.getBody()).find('#add_section_numsections'),
-                        addSections = function() {
-                            // Check if value of the "Number of sections" is a valid positive integer and redirect
-                            // to adding a section script.
-                            if ('' + parseInt(numSections.val()) === numSections.val() && parseInt(numSections.val()) >= 1) {
-                                document.location = trigger.attr('href') + '&numsections=' + parseInt(numSections.val());
+
+                    return modalBody.html();
+                })
+                .then((body) => ModalSaveCancel.create({
+                    body,
+                    title: modalTitle,
+                }))
+                .then(function(modal) {
+                    var numSections = $(modal.getBody()).find('#add_section_numsections'),
+                    addSections = function() {
+                        // Check if value of the "Number of sections" is a valid positive integer and redirect
+                        // to adding a section script.
+                        if ('' + parseInt(numSections.val()) === numSections.val() && parseInt(numSections.val()) >= 1) {
+                            document.location = trigger.attr('href') + '&numsections=' + parseInt(numSections.val());
+                        }
+                    };
+                    modal.setSaveButtonText(modalTitle);
+                    modal.getRoot().on(ModalEvents.shown, function() {
+                        // When modal is shown focus and select the input and add a listener to keypress of "Enter".
+                        numSections.focus().select().on('keydown', function(e) {
+                            if (e.keyCode === KeyCodes.enter) {
+                                addSections();
                             }
-                        };
-                        modal.setSaveButtonText(modalTitle);
-                        modal.getRoot().on(ModalEvents.shown, function() {
-                            // When modal is shown focus and select the input and add a listener to keypress of "Enter".
-                            numSections.focus().select().on('keydown', function(e) {
-                                if (e.keyCode === KeyCodes.enter) {
-                                    addSections();
-                                }
-                            });
-                        });
-                        modal.getRoot().on(ModalEvents.save, function(e) {
-                            // When modal "Add" button is pressed.
-                            e.preventDefault();
-                            addSections();
                         });
                     });
-                });
+                    modal.getRoot().on(ModalEvents.save, function(e) {
+                        // When modal "Add" button is pressed.
+                        e.preventDefault();
+                        addSections();
+                    });
+
+                    trigger.on('click', (e) => {
+                        e.preventDefault();
+                        modal.show();
+                    });
+
+                    return modal;
+                })
+                .catch(notification.exception);
             },
 
             /**

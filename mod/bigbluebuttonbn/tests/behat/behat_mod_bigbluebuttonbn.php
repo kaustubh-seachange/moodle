@@ -26,8 +26,12 @@
 require_once(__DIR__ . '/../../../../lib/behat/behat_base.php');
 
 use Behat\Behat\Hook\Scope\BeforeScenarioScope;
+use Behat\Gherkin\Node\TableNode;
+use mod_bigbluebuttonbn\instance;
+use mod_bigbluebuttonbn\local\config;
+use mod_bigbluebuttonbn\test\subplugins_test_helper_trait;
 use Moodle\BehatExtension\Exception\SkippedException;
-
+require_once(__DIR__ . '../../../classes/test/subplugins_test_helper_trait.php');
 /**
  * Behat custom steps and configuration for mod_bigbluebuttonbn.
  *
@@ -36,6 +40,12 @@ use Moodle\BehatExtension\Exception\SkippedException;
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class behat_mod_bigbluebuttonbn extends behat_base {
+    use subplugins_test_helper_trait;
+
+    /**
+     * @var array List of installed subplugins.
+     */
+    protected $installedsubplugins = [];
 
     /**
      * BeforeScenario hook to reset the remote testpoint.
@@ -48,6 +58,9 @@ class behat_mod_bigbluebuttonbn extends behat_base {
         if (defined('TEST_MOD_BIGBLUEBUTTONBN_MOCK_SERVER')) {
             $this->send_mock_request('backoffice/reset');
         }
+        // Fields are empty by default which causes tests to fail.
+        set_config('bigbluebuttonbn_server_url', config::DEFAULT_SERVER_URL);
+        set_config('bigbluebuttonbn_shared_secret', config::DEFAULT_SHARED_SECRET);
     }
 
     /**
@@ -137,7 +150,13 @@ XPATH
                 return new moodle_url('/mod/bigbluebuttonbn/index.php', [
                     'id' => $this->get_course_id($identifier),
                 ]);
-
+            case 'BigblueButtonBN Guest':
+                $cm = $this->get_cm_by_activity_name('bigbluebuttonbn', $identifier);
+                $instance = instance::get_from_cmid($cm->id);
+                $url = $instance->get_guest_access_url();
+                // We have to make sure we set the password. It makes it then easy to submit the form with the right password.
+                $url->param('password', $instance->get_guest_access_password());
+                return $url;
             default:
                 throw new Exception("Unrecognised page type '{$type}'.");
         }
@@ -171,10 +190,86 @@ XPATH
      * @Given the BigBlueButtonBN server has sent recording ready notifications
      */
     public function trigger_recording_ready_notification(): void {
-        $this->send_mock_request('backoffice/sendNotifications', [
+        $this->send_mock_request('backoffice/sendRecordingReadyNotifications', [
                 'secret' => \mod_bigbluebuttonbn\local\config::DEFAULT_SHARED_SECRET,
             ]
         );
     }
 
+    /**
+     * Trigger a meeting event on BBB side
+     *
+     * @Given /^the BigBlueButtonBN server has received the following events from user "(?P<element_string>(?:[^"]|\\")*)":$/
+     * @param string $username
+     * @param TableNode $data
+     */
+    public function trigger_meeting_event(string $username, TableNode $data): void {
+        global $DB;
+        $user = core_user::get_user_by_username($username);
+        $rows = $data->getHash();
+        foreach ($rows as $elementdata) {
+            $instanceid = $DB->get_field('bigbluebuttonbn', 'id', [
+                'name' => $elementdata['instancename'],
+            ]);
+            $instance = \mod_bigbluebuttonbn\instance::get_from_instanceid($instanceid);
+            $this->send_mock_request('backoffice/addMeetingEvent', [
+                    'secret' => \mod_bigbluebuttonbn\local\config::DEFAULT_SHARED_SECRET,
+                    'meetingID' => $instance->get_meeting_id(),
+                    'attendeeID' => $user->id,
+                    'attendeeName' => fullname($user),
+                    'eventType' => $elementdata['eventtype'],
+                    'eventData' => $elementdata['eventdata'] ?? '',
+                ]
+            );
+        }
+    }
+    /**
+     * Send all events received for this meeting back to moodle
+     *
+     * @Given /^the BigBlueButtonBN activity "(?P<element_string>(?:[^"]|\\")*)" has sent recording all its events$/
+     * @param string $instancename
+     */
+    public function trigger_all_events(string $instancename): void {
+        global $DB;
+
+        $instanceid = $DB->get_field('bigbluebuttonbn', 'id', [
+            'name' => $instancename,
+        ]);
+        $instance = \mod_bigbluebuttonbn\instance::get_from_instanceid($instanceid);
+        $this->send_mock_request('backoffice/sendAllEvents', [
+                'meetingID' => $instance->get_meeting_id(),
+                'sendQuery' => true
+            ]
+        );
+    }
+
+    /**
+     * Install the simple subplugin
+     *
+     * Important note here. Originally we had a step that was installing the plugin, however
+     * because of race condition (mainly javascript calls), the hack to the core_component was
+     * randomly lost due to the component cache being cleared. So we have to install the plugin before
+     * any interaction with the site.
+     * @BeforeScenario @with_bbbext_simple
+     */
+    public function install_simple_subplugin() {
+        $this->setup_fake_plugin("simple");
+        $mockedcomponent = new ReflectionClass(core_component::class);
+        $mockedplugintypes = $mockedcomponent->getProperty('plugintypes');
+        $mockedplugintypes->setValue(null, null);
+        $init = $mockedcomponent->getMethod('init');
+        $init->invoke(null);
+        // I enable the plugin.
+        $manager = core_plugin_manager::resolve_plugininfo_class(\mod_bigbluebuttonbn\extension::BBB_EXTENSION_PLUGIN_NAME);
+        $manager::enable_plugin("simple", true);
+    }
+
+    /**
+     * Uninstall the simple subplugin
+     *
+     * @AfterScenario @with_bbbext_simple
+     */
+    public function uninstall_simple_subplugin() {
+        $this->uninstall_fake_plugin("simple");
+    }
 }

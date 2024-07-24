@@ -94,7 +94,7 @@ class calculated_question_summary_test extends \advanced_testcase {
      *
      * @dataProvider get_min_max_provider
      */
-    public function test_get_min_max_of($subqstats, $expected) {
+    public function test_get_min_max_of($subqstats, $expected): void {
         $calculatedsummary = new calculated_question_summary(null, null, $subqstats);
         $res = $calculatedsummary->get_min_max_of('index');
         $this->assertEquals($expected, $res);
@@ -127,7 +127,7 @@ class calculated_question_summary_test extends \advanced_testcase {
             ],
             'zero mark' => [
                 [
-                    (object)['questionid' => 1, 'sd' => 0.2, 'maxmark' => 0],
+                    (object)['questionid' => 1, 'sd' => 0, 'maxmark' => 0],
                     (object)['questionid' => 2, 'sd' => 0.1049, 'maxmark' => 1],
                 ],
                 [null, 0.1049]
@@ -139,6 +139,13 @@ class calculated_question_summary_test extends \advanced_testcase {
                 ],
                 [0.35, 0.4]
             ],
+            'zero max mark as loaded from the DB' => [
+                [
+                    (object)['questionid' => 1, 'sd' => '0.0000000000', 'maxmark' => '0.0000000'],
+                    (object)['questionid' => 2, 'sd' => '0.0000000000', 'maxmark' => '0.0000000'],
+                ],
+                [null, null]
+            ],
         ];
     }
 
@@ -147,7 +154,7 @@ class calculated_question_summary_test extends \advanced_testcase {
      *
      * @dataProvider get_sd_min_max_provider
      */
-    public function test_get_min_max_of_sd($subqstats, $expected) {
+    public function test_get_min_max_of_sd($subqstats, $expected): void {
         $calculatedsummary = new calculated_question_summary(null, null, $subqstats);
         $res = $calculatedsummary->get_min_max_of('sd');
         $this->assertEquals($expected, $res);

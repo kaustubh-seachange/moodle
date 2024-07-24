@@ -104,6 +104,9 @@ class manage_categories_action_bar implements \renderable {
     protected function get_category_select(\renderer_base $output): ?object {
         if (!$this->searchvalue && $this->viewmode === 'courses') {
             $categories = \core_course_category::make_categories_list(array('moodle/category:manage', 'moodle/course:create'));
+            if (!$categories) {
+                return null;
+            }
             $currentcat = $this->page->url->param('categoryid');
             foreach ($categories as $id => $cat) {
                 $url = new moodle_url($this->page->url, ['categoryid' => $id]);
@@ -113,7 +116,7 @@ class manage_categories_action_bar implements \renderable {
                 $options[$url->out()] = $cat;
             }
 
-            $select = new \url_select($options, $currenturl, null);
+            $select = new \url_select($options, $currenturl);
             $select->set_label(get_string('category'), ['class' => 'sr-only']);
             $select->class .= ' text-truncate w-100';
             return $select->export_for_template($output);
@@ -128,13 +131,18 @@ class manage_categories_action_bar implements \renderable {
      * @return array
      */
     protected function get_search_form(): array {
-        return [
-            'action' => new moodle_url('/course/management.php'),
+        $searchform = [
             'btnclass' => 'btn-primary',
             'inputname' => 'search',
             'searchstring' => get_string('searchcourses'),
             'query' => $this->searchvalue
         ];
+        if (\core_course_category::has_capability_on_any(['moodle/category:manage', 'moodle/course:create'])) {
+            $searchform['action'] = new moodle_url('/course/management.php');
+        } else {
+            $searchform['action'] = new moodle_url('/course/search.php');
+        }
+        return $searchform;
     }
 
     /**

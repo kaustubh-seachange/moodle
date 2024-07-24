@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace block_glossary_random\tests;
+namespace block_glossary_random;
 
 use advanced_testcase;
 use block_glossary_random;
@@ -33,6 +33,7 @@ class glossary_random_test extends advanced_testcase {
     public static function setUpBeforeClass(): void {
         require_once(__DIR__ . '/../../moodleblock.class.php');
         require_once(__DIR__ . '/../block_glossary_random.php');
+        parent::setUpBeforeClass();
     }
 
     /**

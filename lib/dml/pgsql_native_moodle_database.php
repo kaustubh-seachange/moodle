@@ -44,13 +44,21 @@ class pgsql_native_moodle_database extends moodle_database {
         query_end as read_slave_query_end;
     }
 
+    /** @var array $sslmodes */
+    private static $sslmodes = [
+        'disable',
+        'prefer',
+        'require',
+        'verify-full'
+    ];
+
     /** @var array $serverinfo cache */
     private $serverinfo = [];
 
     /** @var array $dbhcursor keep track of open cursors */
     private $dbhcursor = [];
 
-    /** @var resource $pgsql database resource */
+    /** @var resource|PgSql\Connection|null $pgsql database resource */
     protected $pgsql     = null;
 
     protected $last_error_reporting; // To handle pgsql driver default verbosity
@@ -130,6 +138,7 @@ class pgsql_native_moodle_database extends moodle_database {
      * @param mixed $prefix string means moodle db prefix, false used for external databases where prefix not used
      * @param array $dboptions driver specific options
      * @return bool true
+     * @throws moodle_exception
      * @throws dml_connection_exception if error
      */
     public function raw_connect(string $dbhost, string $dbuser, string $dbpass, string $dbname, $prefix, array $dboptions=null): bool {
@@ -185,6 +194,14 @@ class pgsql_native_moodle_database extends moodle_database {
             }
 
             $connection .= " options='" . implode(' ', $options) . "'";
+        }
+
+        if (isset($this->dboptions['ssl'])) {
+            $sslmode = $this->dboptions['ssl'];
+            if (!in_array($sslmode, self::$sslmodes, true)) {
+                throw new moodle_exception('validateerrorlist', 'admin', '', "'dboptions''ssl': $sslmode");
+            }
+            $connection .= " sslmode=$sslmode";
         }
 
         ob_start();
@@ -545,7 +562,7 @@ class pgsql_native_moodle_database extends moodle_database {
         $tablename = $this->prefix.$table;
 
         $sql = "SELECT a.attnum, a.attname AS field, t.typname AS type, a.attlen, a.atttypmod, a.attnotnull, a.atthasdef,
-                       CASE WHEN a.atthasdef THEN pg_catalog.pg_get_expr(d.adbin, d.adrelid) END AS adsrc
+                       CASE WHEN a.atthasdef THEN pg_catalog.pg_get_expr(d.adbin, d.adrelid) ELSE '' END AS adsrc
                   FROM pg_catalog.pg_class c
                   JOIN pg_catalog.pg_namespace as ns ON ns.oid = c.relnamespace
                   JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid
@@ -594,7 +611,7 @@ class pgsql_native_moodle_database extends moodle_database {
 
             } else if (preg_match('/int(\d)/i', $rawcolumn->type, $matches)) {
                 $info->type = 'int';
-                if (strpos($rawcolumn->adsrc, 'nextval') === 0) {
+                if (strpos($rawcolumn->adsrc ?? '', 'nextval') === 0) {
                     $info->primary_key   = true;
                     $info->meta_type     = 'R';
                     $info->unique        = true;
@@ -972,7 +989,7 @@ class pgsql_native_moodle_database extends moodle_database {
      * to get the list of field types which it statically caches only for a single request.
      * This wraps it in a cache keyed by oid to avoid these DB calls on every request.
      *
-     * @param resource $result
+     * @param resource|PgSql\Result $result
      * @param int $fieldnumber
      * @return string Field type
      */
@@ -1305,7 +1322,7 @@ class pgsql_native_moodle_database extends moodle_database {
     /**
      * Update record in database, as fast as possible, no safety checks, lobs not supported.
      * @param string $table name
-     * @param mixed $params data record as object or array
+     * @param stdClass|array $params data record as object or array
      * @param bool true means repeated updates expected
      * @return bool true
      * @throws dml_exception A DML specific exception is thrown for any errors.
@@ -1352,7 +1369,8 @@ class pgsql_native_moodle_database extends moodle_database {
      * specify the record to update
      *
      * @param string $table The database table to be checked against.
-     * @param object $dataobject An object with contents equal to fieldname=>fieldvalue. Must have an entry for 'id' to map to the table specified.
+     * @param stdClass|array $dataobject An object with contents equal to fieldname=>fieldvalue.
+     *        Must have an entry for 'id' to map to the table specified.
      * @param bool true means repeated updates expected
      * @return bool true
      * @throws dml_exception A DML specific exception is thrown for any errors.
@@ -1490,8 +1508,7 @@ class pgsql_native_moodle_database extends moodle_database {
         return " $fieldname::real ";
     }
 
-    public function sql_concat() {
-        $arr = func_get_args();
+    public function sql_concat(...$arr) {
         $s = implode(' || ', $arr);
         if ($s === '') {
             return " '' ";
@@ -1523,6 +1540,19 @@ class pgsql_native_moodle_database extends moodle_database {
     public function sql_group_concat(string $field, string $separator = ', ', string $sort = ''): string {
         $fieldsort = $sort ? "ORDER BY {$sort}" : '';
         return "STRING_AGG(" . $this->sql_cast_to_char($field) . ", '{$separator}' {$fieldsort})";
+    }
+
+    /**
+     * Returns the SQL text to be used to order by columns, standardising the return
+     * pattern of null values across database types to sort nulls first when ascending
+     * and last when descending.
+     *
+     * @param string $fieldname The name of the field we need to sort by.
+     * @param int $sort An order to sort the results in.
+     * @return string The piece of SQL code to be used in your statement.
+     */
+    public function sql_order_by_null(string $fieldname, int $sort = SORT_ASC): string {
+        return parent::sql_order_by_null($fieldname, $sort) . ' NULLS ' . ($sort == SORT_ASC ? 'FIRST' : 'LAST');
     }
 
     public function sql_regex_supported() {

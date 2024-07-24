@@ -30,6 +30,7 @@ require_once($CFG->dirroot . '/backup/util/includes/restore_includes.php');
  * Asyncronhous helper tests.
  *
  * @package    core_backup
+ * @covers     \async_helper
  * @copyright  2018 Matt Porritt <mattp@catalyst-au.net>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -38,7 +39,7 @@ class async_helper_test extends \advanced_testcase {
     /**
      * Tests sending message for asynchronous backup.
      */
-    public function test_send_message() {
+    public function test_send_message(): void {
         global $DB, $USER;
         $this->preventResetByRollback();
         $this->resetAfterTest(true);
@@ -47,7 +48,7 @@ class async_helper_test extends \advanced_testcase {
         set_config('backup_async_message_users', '1', 'backup');
         set_config('backup_async_message_subject', 'Moodle {operation} completed sucessfully', 'backup');
         set_config('backup_async_message',
-                'Dear {user_firstname} {user_lastname}, <br/> Your {operation} (ID: {backupid}) has completed successfully!',
+                'Dear {user_firstname} {user_lastname}, your {operation} (ID: {backupid}) has completed successfully!',
                 'backup');
         set_config('allowedemaildomains', 'example.com');
 
@@ -76,21 +77,23 @@ class async_helper_test extends \advanced_testcase {
         $this->assertCount(1, $emails);
         $email = reset($emails);
 
-        $this->assertSame($USER->email, $email->from);
-        $this->assertSame($user2->email, $email->to);
-        $this->assertSame('Moodle backup completed sucessfully', $email->subject);
-        $this->assertNotEmpty($email->header);
-        $this->assertNotEmpty($email->body);
-        $this->assertMatchesRegularExpression("/$backupid/", $email->body);
-        $this->assertThat($email->body, $this->logicalNot($this->stringContains('{')));
         $this->assertGreaterThan(0, $messageid);
         $sink->clear();
+
+        $this->assertSame($USER->email, $email->from);
+        $this->assertSame($user2->email, $email->to);
+        $this->assertSame('Moodle Backup completed sucessfully', $email->subject);
+
+        // Assert body placeholders have all been replaced.
+        $this->assertStringContainsString('Dear test human, your Backup', $email->body);
+        $this->assertStringContainsString("(ID: {$backupid})", $email->body);
+        $this->assertStringNotContainsString('{', $email->body);
     }
 
     /**
      * Tests getting the asynchronous backup table items.
      */
-    public function test_get_async_backups() {
+    public function test_get_async_backups(): void {
         global $DB, $CFG, $USER, $PAGE;
 
         $this->resetAfterTest(true);
@@ -137,18 +140,17 @@ class async_helper_test extends \advanced_testcase {
         unset($bc);
 
         $coursecontext = \context_course::instance($course->id);
-        $renderer = $PAGE->get_renderer('core', 'backup');
 
-        $result = \async_helper::get_async_backups($renderer, $coursecontext->instanceid);
+        $result = \async_helper::get_async_backups('course', $coursecontext->instanceid);
 
         $this->assertEquals(1, count($result));
-        $this->assertEquals('backup.mbz', $result[0][0]);
+        $this->assertEquals('backup.mbz', $result[0]->filename);
     }
 
     /**
      * Tests getting the backup record.
      */
-    public function test_get_backup_record() {
+    public function test_get_backup_record(): void {
         global $USER;
 
         $this->resetAfterTest();
@@ -170,7 +172,7 @@ class async_helper_test extends \advanced_testcase {
     /**
      * Tests is async pending conditions.
      */
-    public function test_is_async_pending() {
+    public function test_is_async_pending(): void {
         global $USER;
 
         $this->resetAfterTest();
@@ -201,7 +203,7 @@ class async_helper_test extends \advanced_testcase {
     /**
      * Tests is async pending conditions for course copies.
      */
-    public function test_is_async_pending_copy() {
+    public function test_is_async_pending_copy(): void {
         global $USER;
 
         $this->resetAfterTest();

@@ -18,10 +18,10 @@ declare(strict_types=1);
 
 namespace core_admin\reportbuilder\datasource;
 
+use core_admin\reportbuilder\local\entities\task_log;
 use core_reportbuilder\datasource;
 use core_reportbuilder\local\entities\user;
 use core_reportbuilder\local\filters\select;
-use core_admin\local\entities\task_log;
 
 /**
  * Task logs datasource
@@ -75,6 +75,17 @@ class task_logs extends datasource {
             'task_log:starttime',
             'task_log:duration',
             'task_log:result',
+        ];
+    }
+
+    /**
+     * Return the column sorting that will be added to the report upon creation
+     *
+     * @return int[]
+     */
+    public function get_default_column_sorting(): array {
+        return [
+            'task_log:starttime' => SORT_DESC,
         ];
     }
 

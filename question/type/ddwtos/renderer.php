@@ -76,8 +76,8 @@ class qtype_ddwtos_renderer extends qtype_elements_embedded_in_question_text_ren
             question_display_options $options) {
         $question = $qa->get_question();
         $group = $question->places[$place];
-        $boxcontents = '&#160;' . html_writer::tag('span',
-                get_string('blank', 'qtype_ddwtos'), array('class' => 'accesshide'));
+        $label = $options->add_question_identifier_to_label(get_string('blanknumber', 'qtype_ddwtos', $place));
+        $boxcontents = '&#160;' . html_writer::tag('span', $label, array('class' => 'accesshide'));
 
         $value = $qa->get_last_qt_var($question->field($place));
 
@@ -107,23 +107,21 @@ class qtype_ddwtos_renderer extends qtype_elements_embedded_in_question_text_ren
 
     protected function drag_boxes($qa, $group, $choices, question_display_options $options) {
         $boxes = '';
-        foreach ($choices as $key => $choice) {
-            // Bug 8632: long text entry causes bug in drag and drop field in IE.
-            $content = str_replace('-', '&#x2011;', $choice->text);
-            $content = str_replace(' ', '&#160;', $content);
 
+        foreach ($choices as $key => $choice) {
+            $content = question_utils::format_question_fragment($choice->text, $this->page->context);
             $infinite = '';
             if ($choice->infinite) {
                 $infinite = ' infinite';
             }
 
-            $boxes .= html_writer::tag('span', $content, array(
-                    'class' => 'draghome choice' . $key . ' group' .
-                            $choice->draggroup . $infinite)) . ' ';
+            $boxes .= html_writer::tag('span', $content, [
+                    'class' => 'draghome user-select-none choice' . $key . ' group' .
+                            $choice->draggroup . $infinite]) . ' ';
         }
 
         return html_writer::nonempty_tag('div', $boxes,
-                array('class' => 'draggrouphomes' . $choice->draggroup));
+            ['class' => 'user-select-none draggrouphomes' . $choice->draggroup]);
     }
 
     /**

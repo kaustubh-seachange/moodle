@@ -126,6 +126,20 @@ class client extends \oauth2_client {
             return [];
         }
         $result = [];
+
+        // Replace the language tag if it appears in the string.
+        $lang = current_language();
+        $tags = ["{lang}", "{LANG}", "{language}", "{LANGUAGE}", '{lan-guage}', '{LAN-GUAGE}'];
+        $langcode = [
+            strtolower(substr($lang, 0, 2)),
+            strtoupper(substr($lang, 0, 2)),
+            strtolower($lang),
+            strtoupper($lang),
+            str_replace('_', '-', strtolower($lang)),
+            str_replace('_', '-', strtoupper($lang)),
+        ];
+        $params = str_replace($tags, $langcode, $params);
+
         parse_str($params, $result);
         return $result;
     }
@@ -488,7 +502,7 @@ class client extends \oauth2_client {
     /**
      * Fetch the user info from the user info endpoint.
      *
-     * @return array|false Moodle user fields for the logged in user (or false if request failed)
+     * @return stdClass|false Moodle user fields for the logged in user (or false if request failed)
      * @throws moodle_exception if the response is empty after decoding it.
      */
     public function get_raw_userinfo() {
@@ -528,6 +542,10 @@ class client extends \oauth2_client {
      */
     public function get_userinfo() {
         $userinfo = $this->get_raw_userinfo();
+        if ($userinfo === false) {
+            return false;
+        }
+
         return $this->map_userinfo_to_fields($userinfo);
     }
 

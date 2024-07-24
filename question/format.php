@@ -54,6 +54,8 @@ class qformat_default {
     protected $importcontext = null;
     /** @var bool $displayprogress Whether to display progress. */
     public $displayprogress = true;
+    /** @var context[] */
+    public $contexts;
 
     // functions to indicate import/export functionality
     // override to return true if implemented
@@ -166,7 +168,7 @@ class qformat_default {
 
     /**
      * set an array of contexts.
-     * @param array $contexts Moodle course variable
+     * @param context[] $contexts
      */
     public function setContexts($contexts) {
         $this->contexts = $contexts;
@@ -362,7 +364,7 @@ class qformat_default {
         // check for errors before we continue
         if ($this->stoponerror and ($this->importerrors>0)) {
             echo $OUTPUT->notification(get_string('importparseerror', 'question'));
-            return true;
+            return false;
         }
 
         // get list of valid answer grades
@@ -386,8 +388,8 @@ class qformat_default {
                     }
                 }
                 if ($invalidfractions) {
-                    echo $OUTPUT->notification(get_string('invalidgrade', 'question',
-                            implode(', ', $invalidfractions)));
+                    $a = ['grades' => implode(', ', $invalidfractions), 'question' => $question->name];
+                    echo $OUTPUT->notification(get_string('invalidgradequestion', 'question', $a));
                     ++$gradeerrors;
                     continue;
                 } else {
@@ -400,6 +402,7 @@ class qformat_default {
 
         // check for errors before we continue
         if ($this->stoponerror && $gradeerrors > 0) {
+            echo $OUTPUT->notification(get_string('importparseerror', 'question'));
             return false;
         }
 
@@ -474,9 +477,6 @@ class qformat_default {
             $questionversion->status = \core_question\local\bank\question_version_status::QUESTION_STATUS_READY;
             $questionversion->id = $DB->insert_record('question_versions', $questionversion);
 
-            $event = \core\event\question_created::create_from_question_instance($question, $this->importcontext);
-            $event->trigger();
-
             if (isset($question->questiontextitemid)) {
                 $question->questiontext = file_save_draft_area_files($question->questiontextitemid,
                         $this->importcontext->id, 'question', 'questiontext', $question->id,
@@ -504,6 +504,8 @@ class qformat_default {
             // Now to save all the answers and type-specific options
 
             $result = question_bank::get_qtype($question->qtype)->save_question_options($question);
+            $event = \core\event\question_created::create_from_question_instance($question, $this->importcontext);
+            $event->trigger();
 
             if (core_tag_tag::is_enabled('core_question', 'question')) {
                 // Is the current context we're importing in a course context?

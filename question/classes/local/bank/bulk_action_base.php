@@ -44,7 +44,7 @@ abstract class bulk_action_base {
      *
      * @return string
      */
-    abstract public function get_bulk_action_key(): string;
+    abstract function get_key(): string;
 
     /**
      * URL of the bulk action redirect page.
@@ -67,5 +67,12 @@ abstract class bulk_action_base {
      */
     public function get_bulk_action_capabilities(): ?array {
         return null;
+    }
+
+    /**
+     * @deprecated since Moodle 4.0
+     */
+    public function get_bulk_action_key() {
+        throw new \coding_exception(__FUNCTION__ . '() has been removed.');
     }
 }

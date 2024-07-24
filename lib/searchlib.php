@@ -71,7 +71,7 @@ class search_token {
   // Need to think about this some more.
 
   function sanitize($userstring){
-    return htmlspecialchars($userstring);
+    return htmlspecialchars($userstring, ENT_COMPAT);
   }
   function getValue(){
     return $this->value;
@@ -382,23 +382,6 @@ class search_parser {
 }
 
 /**
- * Primitive function to generate a SQL string from a parse tree
- * using TEXT indexes. If searches aren't suitable to use TEXT
- * this function calls the default search_generate_SQL() one.
- *
- * @deprecated since Moodle 2.9 MDL-48939
- * @todo MDL-48940 This will be deleted in Moodle 3.2
- * @see search_generate_SQL()
- */
-function search_generate_text_SQL($parsetree, $datafield, $metafield, $mainidfield, $useridfield,
-                             $userfirstnamefield, $userlastnamefield, $timefield, $instancefield) {
-    debugging('search_generate_text_SQL() is deprecated, please use search_generate_SQL() instead.', DEBUG_DEVELOPER);
-
-    return search_generate_SQL($parsetree, $datafield, $metafield, $mainidfield, $useridfield,
-                               $userfirstnamefield, $userlastnamefield, $timefield, $instancefield);
-}
-
-/**
  * Primitive function to generate a SQL string from a parse tree.
  * Parameters:
  *
@@ -418,6 +401,8 @@ function search_generate_SQL($parsetree, $datafield, $metafield, $mainidfield, $
     if ($DB->sql_regex_supported()) {
         $REGEXP    = $DB->sql_regex(true);
         $NOTREGEXP = $DB->sql_regex(false);
+        $regexwordbegin = $DB->sql_regex_get_word_beginning_boundary_marker();
+        $regexwordend = $DB->sql_regex_get_word_end_boundary_marker();
     }
 
     $params = array();
@@ -451,40 +436,40 @@ function search_generate_SQL($parsetree, $datafield, $metafield, $mainidfield, $
         switch($type){
             case TOKEN_STRING:
                 $SQLString .= "((".$DB->sql_like($datafield, ":$name1", false).") OR (".$DB->sql_like($metafield, ":$name2", false)."))";
-                $params[$name1] =  "%$value%";
-                $params[$name2] =  "%$value%";
+                $params[$name1] = "%$value%";
+                $params[$name2] = "%$value%";
                 break;
             case TOKEN_EXACT:
                 $SQLString .= "(($datafield $REGEXP :$name1) OR ($metafield $REGEXP :$name2))";
-                $params[$name1] =  "[[:<:]]".$value."[[:>:]]";
-                $params[$name2] =  "[[:<:]]".$value."[[:>:]]";
+                $params[$name1] = $regexwordbegin.$value.$regexwordend;
+                $params[$name2] = $regexwordbegin.$value.$regexwordend;
                 break;
             case TOKEN_META:
                 if ($metafield != '') {
                     $SQLString .= "(".$DB->sql_like($metafield, ":$name1", false).")";
-                    $params[$name1] =  "%$value%";
+                    $params[$name1] = "%$value%";
                 }
                 break;
             case TOKEN_USER:
                 $SQLString .= "(($mainidfield = $useridfield) AND ((".$DB->sql_like($userfirstnamefield, ":$name1", false).") OR (".$DB->sql_like($userlastnamefield, ":$name2", false).")))";
-                $params[$name1] =  "%$value%";
-                $params[$name2] =  "%$value%";
+                $params[$name1] = "%$value%";
+                $params[$name2] = "%$value%";
                 break;
             case TOKEN_USERID:
                 $SQLString .= "($useridfield = :$name1)";
-                $params[$name1] =  $value;
+                $params[$name1] = $value;
                 break;
             case TOKEN_INSTANCE:
                 $SQLString .= "($instancefield = :$name1)";
-                $params[$name1] =  $value;
+                $params[$name1] = $value;
                 break;
             case TOKEN_DATETO:
                 $SQLString .= "($timefield <= :$name1)";
-                $params[$name1] =  $value;
+                $params[$name1] = $value;
                 break;
             case TOKEN_DATEFROM:
                 $SQLString .= "($timefield >= :$name1)";
-                $params[$name1] =  $value;
+                $params[$name1] = $value;
                 break;
             case TOKEN_TAGS:
                 $sqlstrings = [];
@@ -504,8 +489,8 @@ function search_generate_SQL($parsetree, $datafield, $metafield, $mainidfield, $
                 break;
             case TOKEN_NEGATE:
                 $SQLString .= "(NOT ((".$DB->sql_like($datafield, ":$name1", false).") OR (".$DB->sql_like($metafield, ":$name2", false).")))";
-                $params[$name1] =  "%$value%";
-                $params[$name2] =  "%$value%";
+                $params[$name1] = "%$value%";
+                $params[$name2] = "%$value%";
                 break;
             default:
                 return '';

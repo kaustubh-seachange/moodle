@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace block_lp\tests;
+namespace block_lp;
 
 use advanced_testcase;
 use block_lp;
@@ -33,6 +33,7 @@ class lp_test extends advanced_testcase {
     public static function setUpBeforeClass(): void {
         require_once(__DIR__ . '/../../moodleblock.class.php');
         require_once(__DIR__ . '/../block_lp.php');
+        parent::setUpBeforeClass();
     }
 
     /**

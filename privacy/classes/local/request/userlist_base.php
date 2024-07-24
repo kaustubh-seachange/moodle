@@ -77,7 +77,7 @@ abstract class userlist_base implements
      * @param   array   $userids The list of users.
      * @return  $this
      */
-    protected function set_userids(array $userids) : userlist_base {
+    protected function set_userids(array $userids): userlist_base {
         $this->userids = array_values(array_unique($userids));
 
         return $this;
@@ -89,7 +89,7 @@ abstract class userlist_base implements
      * @param   array   $userids The list of users.
      * @return  $this
      */
-    protected function add_userids(array $userids) : userlist_base {
+    protected function add_userids(array $userids): userlist_base {
         $this->set_userids(array_merge($this->get_userids(), $userids));
 
         return $this;
@@ -100,7 +100,7 @@ abstract class userlist_base implements
      *
      * @return  int[]
      */
-    public function get_userids() : array {
+    public function get_userids(): array {
         return $this->userids;
     }
 
@@ -109,7 +109,7 @@ abstract class userlist_base implements
      *
      * @return  \stdClass[]
      */
-    public function get_users() : array {
+    public function get_users(): array {
         $users = [];
         foreach ($this->userids as $userid) {
             if ($user = \core_user::get_user($userid)) {
@@ -126,7 +126,7 @@ abstract class userlist_base implements
      * @param string $component the frankenstyle component name.
      * @return  $this
      */
-    protected function set_component($component) : userlist_base {
+    protected function set_component($component): userlist_base {
         $this->component = $component;
 
         return $this;
@@ -137,7 +137,7 @@ abstract class userlist_base implements
      *
      * @return string the component name associated with this userlist.
      */
-    public function get_component() : string {
+    public function get_component(): string {
         return $this->component;
     }
 
@@ -146,6 +146,7 @@ abstract class userlist_base implements
      *
      * @return  \user
      */
+    #[\ReturnTypeWillChange]
     public function current() {
         $user = \core_user::get_user($this->userids[$this->iteratorposition]);
 
@@ -160,7 +161,7 @@ abstract class userlist_base implements
                 $user = $this->current();
             } else {
                 // There are no more context ids left.
-                return;
+                return null;
             }
         }
 
@@ -172,6 +173,7 @@ abstract class userlist_base implements
      *
      * @return  mixed
      */
+    #[\ReturnTypeWillChange]
     public function key() {
         return $this->iteratorposition;
     }
@@ -179,7 +181,7 @@ abstract class userlist_base implements
     /**
      * Move to the next user in the list.
      */
-    public function next() {
+    public function next(): void {
         ++$this->iteratorposition;
     }
 
@@ -188,7 +190,7 @@ abstract class userlist_base implements
      *
      * @return  bool
      */
-    public function valid() {
+    public function valid(): bool {
         return isset($this->userids[$this->iteratorposition]) && $this->current();
     }
 
@@ -198,14 +200,14 @@ abstract class userlist_base implements
      * The list of users is uniqued during the rewind.
      * The rewind is called at the start of most iterations.
      */
-    public function rewind() {
+    public function rewind(): void {
         $this->iteratorposition = 0;
     }
 
     /**
      * Return the number of users.
      */
-    public function count() {
+    public function count(): int {
         return count($this->userids);
     }
 
@@ -214,7 +216,7 @@ abstract class userlist_base implements
      *
      * @return  \context
      */
-    public function get_context() : \context {
+    public function get_context(): \context {
         return $this->context;
     }
 }

@@ -1,4 +1,4 @@
-@core @core_question
+@core @core_question @javascript
 Feature: A teacher can edit questions in the question bank
   In order to improve my questions
   As a teacher
@@ -22,6 +22,7 @@ Feature: A teacher can edit questions in the question bank
       | Test questions   | essay | Test question to be edited | Write about whatever you want |
     And I am on the "Course 1" "core_question > course question bank" page logged in as "teacher1"
 
+  @javascript
   Scenario: Edit a previously created question
     When I am on the "Test question to be edited" "core_question > edit" page logged in as "teacher1"
     And I set the following fields to these values:
@@ -30,7 +31,7 @@ Feature: A teacher can edit questions in the question bank
     And I press "id_submitbutton"
     Then I should see "Edited question name"
     And I should not see "Test question to be edited"
-    And "Edited question name" row "Created by" column of "categoryquestions" table should contain "Teacher 1"
+    And I should see "Teacher 1"
 
   Scenario: Edit a previously created question without permission 'moodle/question:moveall' and 'moodle/question:movemine'
     Given I log in as "admin"
@@ -45,7 +46,7 @@ Feature: A teacher can edit questions in the question bank
     And I press "id_submitbutton"
     Then I should see "Edited question name"
     And I should not see "Test question to be edited"
-    And "Edited question name" row "Created by" column of "categoryquestions" table should contain "Teacher 1"
+    And I should see "Teacher 1"
 
   Scenario: Edit a previously created question without permission 'moodle/question:editall' and 'moodle/question:editmine'
     Given I log in as "admin"
@@ -65,7 +66,7 @@ Feature: A teacher can edit questions in the question bank
     And I set the field "Question name" to "Edited question name"
     And I press "Cancel"
     Then I should see "Test question to be edited"
-    And "Test question to be edited" row "Created by" column of "categoryquestions" table should contain "Admin User"
+    And I should see "Admin User"
 
   Scenario: A question can have its idnumber removed
     Given the following "questions" exist:
@@ -83,9 +84,9 @@ Feature: A teacher can edit questions in the question bank
       | questioncategory | qtype       | name            | questiontext    |
       | Test questions   | missingtype | Broken question | Write something |
     When I am on the "Course 1" "core_question > course question bank" page logged in as "teacher1"
-    Then "Edit question" "link" should not exist in the "Broken question" "table_row"
-    And "Duplicate" "link" should not exist in the "Broken question" "table_row"
-    And "Manage tags" "link" should exist in the "Broken question" "table_row"
-    And "Preview" "link" should not exist in the "Broken question" "table_row"
-    And "Delete" "link" should exist in the "Broken question" "table_row"
-    And "Export as Moodle XML" "link" should not exist in the "Broken question" "table_row"
+    Then the "Edit question" item should not exist in the "Edit" action menu of the "Broken question" "table_row"
+    And the "Duplicate" item should not exist in the "Edit" action menu of the "Broken question" "table_row"
+    And the "Preview" item should not exist in the "Edit" action menu of the "Broken question" "table_row"
+    And the "Export as XML" item should not exist in the "Edit" action menu of the "Broken question" "table_row"
+    And the "Manage tags" item should exist in the "Edit" action menu of the "Broken question" "table_row"
+    And the "Delete" item should exist in the "Edit" action menu of the "Broken question" "table_row"

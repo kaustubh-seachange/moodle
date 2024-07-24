@@ -19,6 +19,7 @@ namespace mod_data;
 use action_menu;
 use action_menu_link_secondary;
 use core\output\checkbox_toggleall;
+use data_field_base;
 use html_writer;
 use mod_data\manager;
 use moodle_url;
@@ -79,6 +80,9 @@ class template {
     /** @var array The mod_data fields. */
     protected $fields = [];
 
+    /** @var array All fields that are not present in the template content. */
+    protected $otherfields = [];
+
     /**
      * Class contructor.
      *
@@ -100,6 +104,69 @@ class template {
         $this->fields = $fields ?? $manager->get_fields();
         $this->add_options($options);
         $this->load_template_tags($templatecontent);
+    }
+
+    /**
+     * Create a template class with the default template content.
+     *
+     * @param manager $manager the current instance manager.
+     * @param string $templatename the template name.
+     * @param bool $form whether the fields should be displayed as form instead of data.
+     * @return self The template with the default content (to be displayed when no template is defined).
+     */
+    public static function create_default_template(
+            manager $manager,
+            string $templatename,
+            bool $form = false
+    ): self {
+        $renderer = $manager->get_renderer();
+        $content = '';
+        switch ($templatename) {
+            case 'addtemplate':
+            case 'asearchtemplate':
+            case 'listtemplate':
+            case 'rsstemplate':
+            case 'singletemplate':
+                $template = new \mod_data\output\defaulttemplate($manager->get_fields(), $templatename, $form);
+                $content = $renderer->render_defaulttemplate($template);
+        }
+
+        // Some templates have extra options.
+        $options = self::get_default_display_options($templatename);
+
+        return new self($manager, $content, $options);
+    }
+
+    /**
+     * Get default options for templates.
+     *
+     * For instance, the list template supports the show more button.
+     *
+     * @param string $templatename the template name.
+     * @return array an array of extra diplay options.
+     */
+    public static function get_default_display_options(string $templatename): array {
+        $options = [];
+
+        if ($templatename === 'singletemplate') {
+            $options['comments'] = true;
+            $options['ratings'] = true;
+        }
+        if ($templatename === 'listtemplate') {
+            // The "Show more" button should be only displayed in the listtemplate.
+            $options['showmore'] = true;
+        }
+
+        return $options;
+    }
+
+    /**
+     * Return the raw template content.
+     *
+     * @return string the template content before parsing
+     */
+    public function get_template_content(): string {
+        return $this->templatecontent;
     }
 
     /**
@@ -150,6 +217,32 @@ class template {
             return;
         }
         $this->tags = $matches['tags'];
+        // Check if some tag require some extra template scan.
+        foreach ($this->tags as $tagname) {
+            $methodname = "preprocess_tag_{$tagname}";
+            if (method_exists($this, $methodname)) {
+                $this->$methodname($templatecontent);
+            }
+        }
+    }
+
+    /**
+     * Check if a tag is present in the template.
+     *
+     * @param bool $tagname the tag to check (without ##)
+     * @return bool if the tag is present
+     */
+    public function has_tag(string $tagname): bool {
+        return in_array($tagname, $this->tags);
+    }
+
+    /**
+     * Return the current template name.
+     *
+     * @return string the template name
+     */
+    public function get_template_name(): string {
+        return $this->templatename;
     }
 
     /**
@@ -158,9 +251,9 @@ class template {
      * @return pix_icon[] icon name => pix_icon
      */
     protected function get_icons() {
-        $attrs = ['class' => 'iconsmall'];
+        $attrs = ['class' => 'iconsmall dataicon'];
         return [
-            'edit' => new pix_icon('t/edit', get_string('edit'), '', $attrs),
+            'edit' => new pix_icon('t/editinline', get_string('edit'), '', $attrs),
             'delete' => new pix_icon('t/delete', get_string('delete'), '', $attrs),
             'more' => new pix_icon('t/preview', get_string('more', 'data'), '', $attrs),
             'approve' => new pix_icon('t/approve', get_string('approve', 'data'), '', $attrs),
@@ -227,9 +320,13 @@ class template {
                 $this->search,
                 $field->display_browse_field($entry->id, $this->templatename)
             );
-            // Field id.
+            // Other dynamic field information.
             $pattern = '[[' . $field->field->name . '#id]]';
             $result[$pattern] = $field->field->id;
+            $pattern = '[[' . $field->field->name . '#name]]';
+            $result[$pattern] = $field->field->name;
+            $pattern = '[[' . $field->field->name . '#description]]';
+            $result[$pattern] = $field->field->description;
         }
         return $result;
     }
@@ -421,7 +518,7 @@ class template {
         if (!isset($user->picture)) {
             $user = core_user::get_user($entry->userid);
         }
-        return $OUTPUT->user_picture($user, ['courseid' => $cm->course]);
+        return $OUTPUT->user_picture($user, ['courseid' => $cm->course, 'size' => 64]);
     }
 
     /**
@@ -469,7 +566,11 @@ class template {
      * @return string the tag replacement
      */
     protected function get_tag_timeadded_replacement(stdClass $entry, bool $canmanageentry): string {
-        return userdate($entry->timecreated);
+        return html_writer::tag(
+            'span',
+            userdate($entry->timecreated, get_string('strftimedatemonthabbr', 'langconfig')),
+            ['title' => userdate($entry->timecreated)]
+        );
     }
 
     /**
@@ -480,7 +581,11 @@ class template {
      * @return string the tag replacement
      */
     protected function get_tag_timemodified_replacement(stdClass $entry, bool $canmanageentry): string {
-        return userdate($entry->timemodified);
+        return html_writer::tag(
+            'span',
+            userdate($entry->timemodified, get_string('strftimedatemonthabbr', 'langconfig')),
+            ['title' => userdate($entry->timemodified)]
+        );
     }
 
     /**
@@ -542,7 +647,7 @@ class template {
         if (!$this->instance->approval) {
             return '';
         }
-        return ($entry->approved) ? get_string('approved', 'data') : get_string('notapproved', 'data');
+        return ($entry->approved) ? '' : html_writer::div(get_string('notapproved', 'data'), 'mod-data-approval-status-badge');
     }
 
     /**
@@ -618,6 +723,46 @@ class template {
     }
 
     /**
+     * Prepare otherfield tag scanning the present template fields.
+     *
+     * @param string $templatecontent the template content
+     */
+    protected function preprocess_tag_otherfields(string $templatecontent) {
+        $otherfields = [];
+        $fields = $this->manager->get_fields();
+        foreach ($fields as $field) {
+            if (strpos($templatecontent, "[[" . $field->field->name . "]]") === false) {
+                $otherfields[] = $field;
+            }
+        }
+        $this->otherfields = $otherfields;
+    }
+
+    /**
+     * Returns the ##otherfields## tag replacement for an entry.
+     *
+     * @param stdClass $entry the entry object
+     * @param bool $canmanageentry if the current user can manage this entry
+     * @return string the tag replacement
+     */
+    protected function get_tag_otherfields_replacement(stdClass $entry, bool $canmanageentry): string {
+        global $OUTPUT;
+        $fields = [];
+        foreach ($this->otherfields as $field) {
+            $fieldvalue = highlight(
+                $this->search,
+                $field->display_browse_field($entry->id, $this->templatename)
+            );
+            $fieldinfo = [
+                'fieldname' => $field->field->name,
+                'fieldcontent' => $fieldvalue,
+            ];
+            $fields[] = $fieldinfo;
+        }
+        return $OUTPUT->render_from_template('mod_data/fields_otherfields', ['fields' => $fields]);
+    }
+
+    /**
      * Returns the ##actionsmenu## tag replacement for an entry.
      *
      * @param stdClass $entry the entry object
@@ -628,10 +773,9 @@ class template {
         global $OUTPUT, $CFG;
 
         $actionmenu = new action_menu();
-        $icon = $OUTPUT->pix_icon('i/menu', get_string('actions'));
-        $actionmenu->set_menu_trigger($icon, 'btn btn-icon d-flex align-items-center justify-content-center');
+        $actionmenu->set_kebab_trigger();
         $actionmenu->set_action_label(get_string('actions'));
-        $actionmenu->attributes['class'] .= ' entry-actionsmenu';
+        $actionmenu->set_additional_classes('entry-actionsmenu');
 
         // Show more.
         if ($this->showmore) {
@@ -735,5 +879,126 @@ class template {
         }
 
         return $OUTPUT->render($actionmenu);
+    }
+
+    /**
+     * Parse the template as if it was for add entry.
+     *
+     * This method is similar to the parse_entry but it uses the display_add_field method
+     * instead of the display_browse_field.
+     *
+     * @param stdClass|null $processeddata the previous process data information.
+     * @param int|null $entryid the possible entry id
+     * @param stdClass|null $entrydata the entry data from a previous form or from a real entry
+     * @return string the add entry HTML content
+     */
+    public function parse_add_entry(
+        ?stdClass $processeddata = null,
+        ?int $entryid = null,
+        ?stdClass $entrydata = null
+    ): string {
+        global $OUTPUT;
+
+        $manager = $this->manager;
+        $renderer = $manager->get_renderer();
+        $templatecontent = $this->templatecontent;
+
+        if (!$processeddata) {
+            $processeddata = (object)[
+                'generalnotifications' => [],
+                'fieldnotifications' => [],
+            ];
+        }
+
+        $result = '';
+
+        foreach ($processeddata->generalnotifications as $notification) {
+            $result .= $renderer->notification($notification);
+        }
+
+        $possiblefields = $manager->get_fields();
+        $patterns = [];
+        $replacements = [];
+
+        // Then we generate strings to replace.
+        $otherfields = [];
+        foreach ($possiblefields as $field) {
+            $fieldinput = $this->get_field_input($processeddata, $field, $entryid, $entrydata);
+            if (strpos($templatecontent, "[[" . $field->field->name . "]]") !== false) {
+                // Replace the field tag.
+                $patterns[] = "[[" . $field->field->name . "]]";
+                $replacements[] = $fieldinput;
+            } else {
+                // Is in another fields.
+                $otherfields[] = [
+                    'fieldname' => $field->field->name,
+                    'fieldcontent' => $fieldinput,
+                ];
+            }
+
+            // Replace the field id tag.
+            $patterns[] = "[[" . $field->field->name . "#id]]";
+            $replacements[] = 'field_' . $field->field->id;
+            $patterns[] = '[[' . $field->field->name . '#name]]';
+            $replacements[] = $field->field->name;
+            $patterns[] = '[[' . $field->field->name . '#description]]';
+            $replacements[] = $field->field->description;
+        }
+
+        $patterns[] = "##otherfields##";
+        if (!empty($otherfields)) {
+            $replacements[] = $OUTPUT->render_from_template(
+                'mod_data/fields_otherfields',
+                ['fields' => $otherfields]
+            );
+        } else {
+            $replacements[] = '';
+        }
+
+        if (core_tag_tag::is_enabled('mod_data', 'data_records')) {
+            $patterns[] = "##tags##";
+            $replacements[] = data_generate_tag_form($entryid);
+        }
+
+        $result .= str_ireplace($patterns, $replacements, $templatecontent);
+        return $result;
+    }
+
+    /**
+     * Return the input form html from a specific field.
+     *
+     * @param stdClass $processeddata the previous process data information.
+     * @param data_field_base $field the field object
+     * @param int|null $entryid the possible entry id
+     * @param stdClass|null $entrydata the entry data from a previous form or from a real entry
+     * @return string the add entry HTML content
+     */
+    private function get_field_input(
+        stdClass $processeddata,
+        data_field_base $field,
+        ?int $entryid = null,
+        ?stdClass $entrydata = null
+    ): string {
+        $renderer = $this->manager->get_renderer();
+        $errors = '';
+        $fieldnotifications = $processeddata->fieldnotifications[$field->field->name] ?? [];
+        if (!empty($fieldnotifications)) {
+            foreach ($fieldnotifications as $notification) {
+                $errors .= $renderer->notification($notification);
+            }
+        }
+        $fielddisplay = '';
+        if ($field->type === 'unknown') {
+            if ($this->canmanageentries) { // Display notification for users that can manage entries.
+                $errors .= $renderer->notification(get_string(
+                    'missingfieldtype',
+                    'data',
+                    (object)['name' => s($field->field->name)]
+                ));
+            }
+        } else {
+            $fielddisplay = $field->display_add_field($entryid, $entrydata);
+        }
+        return $errors . $fielddisplay;
     }
 }

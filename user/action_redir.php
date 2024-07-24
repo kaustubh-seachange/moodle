@@ -61,7 +61,7 @@ if ($formaction == 'bulkchange.php') {
 
     $userids = optional_param_array('userid', array(), PARAM_INT);
     $default = new moodle_url('/user/index.php', ['id' => $course->id]);
-    $returnurl = new moodle_url(optional_param('returnto', $default, PARAM_URL));
+    $returnurl = new moodle_url(optional_param('returnto', $default, PARAM_LOCALURL));
 
     if (empty($userids)) {
         $userids = optional_param_array('bulkuser', array(), PARAM_INT);
@@ -229,6 +229,12 @@ if ($formaction == 'bulkchange.php') {
             return false;
         };
         $filteredusers = array_filter($users, $matchesplugin);
+
+        // If the bulk operation is deleting enrolments, we exclude in any case the current user as it was probably a mistake.
+        if ($operationname === 'deleteselectedusers' && (!in_array($USER->id, $removed))) {
+            \core\notification::warning(get_string('userremovedfromselectiona', 'enrol', fullname($USER)));
+            unset($filteredusers[$USER->id]);
+        }
 
         if (empty($filteredusers)) {
             redirect($returnurl, get_string('noselectedusers', 'bulkusers'));

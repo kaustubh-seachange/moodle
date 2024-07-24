@@ -75,6 +75,9 @@ class behat_reportbuilder extends behat_base {
             new behat_component_named_selector('Condition', [
                 ".//*[@data-region='conditions-form']//*[@data-condition-name=%locator%]",
             ]),
+            new behat_component_named_selector('Audience', [
+                ".//*[@data-region='audiences']//*[@data-audience-title=%locator%]",
+            ]),
         ];
     }
 
@@ -109,7 +112,11 @@ class behat_reportbuilder extends behat_base {
      * @param string $row
      */
     public function i_press_action_in_the_report_row(string $action, string $row): void {
-        $this->execute('behat_action_menu::i_open_the_action_menu_in', [$this->escape($row), 'table_row']);
-        $this->execute('behat_action_menu::i_choose_in_the_open_action_menu', [$this->escape($action)]);
+        $this->execute('behat_action_menu::i_choose_in_the_named_menu_in_container', [
+            $this->escape($action),
+            get_string('actions', 'core_reportbuilder'),
+            $this->escape($row),
+            'table_row',
+        ]);
     }
 }

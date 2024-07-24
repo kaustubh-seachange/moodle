@@ -21,6 +21,7 @@ use core\oauth2\api;
 use core\oauth2\endpoint;
 use core\oauth2\issuer;
 use core\oauth2\system_account;
+use \core\oauth2\user_field_mapping;
 
 /**
  * Tests for oauth2 apis (\core\oauth2\*).
@@ -28,14 +29,14 @@ use core\oauth2\system_account;
  * @package    core
  * @copyright  2017 Damyon Wiese
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later.
- * @coversDefaultClass \core\oauth2\api
+ * @covers \core\oauth2\api
  */
 class oauth2_test extends \advanced_testcase {
 
     /**
      * Tests the crud operations on oauth2 issuers.
      */
-    public function test_create_and_delete_standard_issuers() {
+    public function test_create_and_delete_standard_issuers(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
         api::create_standard_issuer('google');
@@ -71,7 +72,7 @@ class oauth2_test extends \advanced_testcase {
     /**
      * Tests the crud operations on oauth2 issuers.
      */
-    public function test_create_nextcloud_without_url() {
+    public function test_create_nextcloud_without_url(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
 
@@ -82,7 +83,7 @@ class oauth2_test extends \advanced_testcase {
     /**
      * Tests we can list and delete each of the persistents related to an issuer.
      */
-    public function test_getters() {
+    public function test_getters(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
         $issuer = api::create_standard_issuer('microsoft');
@@ -145,7 +146,7 @@ class oauth2_test extends \advanced_testcase {
      * @param \stdClass $responsedata The response data to be mocked.
      * @param int $expiresin The expected expiration time.
      */
-    public function test_get_system_oauth_client($responsedata, $expiresin) {
+    public function test_get_system_oauth_client($responsedata, $expiresin): void {
         $this->resetAfterTest();
         $this->setAdminUser();
 
@@ -184,7 +185,7 @@ class oauth2_test extends \advanced_testcase {
     /**
      * Tests we can enable and disable an issuer.
      */
-    public function test_enable_disable_issuer() {
+    public function test_enable_disable_issuer(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
 
@@ -212,7 +213,7 @@ class oauth2_test extends \advanced_testcase {
     /**
      * Test the alloweddomains for an issuer.
      */
-    public function test_issuer_alloweddomains() {
+    public function test_issuer_alloweddomains(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
 
@@ -254,8 +255,6 @@ class oauth2_test extends \advanced_testcase {
     /**
      * Test endpoints creation for issuers.
      * @dataProvider create_endpoints_for_standard_issuer_provider
-     *
-     * @covers ::create_endpoints_for_standard_issuer
      *
      * @param string $type Issuer type to create.
      * @param string|null $discoveryurl Expected discovery URL or null if this endpoint doesn't exist.
@@ -368,7 +367,7 @@ class oauth2_test extends \advanced_testcase {
     /**
      * Test for get all issuers.
      */
-    public function test_get_all_issuers() {
+    public function test_get_all_issuers(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
         $googleissuer = api::create_standard_issuer('google');
@@ -395,7 +394,7 @@ class oauth2_test extends \advanced_testcase {
     /**
      * Test for is available for login.
      */
-    public function test_is_available_for_login() {
+    public function test_is_available_for_login(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
         $googleissuer = api::create_standard_issuer('google');
@@ -442,4 +441,178 @@ class oauth2_test extends \advanced_testcase {
 
         $this->assertFalse($googleissuer->is_available_for_login());
     }
+
+    /**
+     * Data provider for test_get_internalfield_list and test_get_internalfields.
+     *
+     * @return array
+     */
+    public function create_custom_profile_fields(): array {
+        return [
+            'data' =>
+            [
+                'given' => [
+                    'Hobbies' => [
+                        'shortname' => 'hobbies',
+                        'name' => 'Hobbies',
+                    ]
+                ],
+                'expected' => [
+                    'Hobbies' => [
+                        'shortname' => 'hobbies',
+                        'name' => 'Hobbies',
+                    ]
+                ]
+            ],
+            [
+                'given' => [
+                    'Billing' => [
+                        'shortname' => 'billingaddress',
+                        'name' => 'Billing Address',
+                    ],
+                    'Payment' => [
+                        'shortname' => 'creditcardnumber',
+                        'name' => 'Credit Card Number',
+                    ]
+                ],
+                'expected' => [
+                    'Billing' => [
+                        'shortname' => 'billingaddress',
+                        'name' => 'Billing Address',
+                    ],
+                    'Payment' => [
+                        'shortname' => 'creditcardnumber',
+                        'name' => 'Credit Card Number',
+                    ]
+                ]
+            ]
+        ];
+    }
+
+    /**
+     * Test getting the list of internal fields.
+     *
+     * @dataProvider create_custom_profile_fields
+     * @covers \core\oauth2\user_field_mapping::get_internalfield_list
+     * @param array $given Categories and profile fields.
+     * @param array $expected Expected value.
+     */
+    public function test_get_internalfield_list(array $given, array $expected): void {
+        $this->resetAfterTest();
+        self::generate_custom_profile_fields($given);
+
+        $userfieldmapping = new user_field_mapping();
+        $internalfieldlist = $userfieldmapping->get_internalfield_list();
+
+        foreach ($expected as $category => $value) {
+            // Custom profile fields must exist.
+            $this->assertNotEmpty($internalfieldlist[$category]);
+
+            // Category must have the custom profile fields with expected value.
+            $this->assertEquals(
+                $internalfieldlist[$category][\core_user\fields::PROFILE_FIELD_PREFIX . $value['shortname']],
+                $value['name']
+            );
+        }
+    }
+
+    /**
+     * Test getting the list of internal fields with flat array.
+     *
+     * @dataProvider create_custom_profile_fields
+     * @covers \core\oauth2\user_field_mapping::get_internalfields
+     * @param array $given Categories and profile fields.
+     * @param array $expected Expected value.
+     */
+    public function test_get_internalfields(array $given, array $expected): void {
+        $this->resetAfterTest();
+        self::generate_custom_profile_fields($given);
+
+        $userfieldmapping = new user_field_mapping();
+        $internalfields = $userfieldmapping->get_internalfields();
+
+        // Custom profile fields must exist.
+        foreach ($expected as $category => $value) {
+            $this->assertContains( \core_user\fields::PROFILE_FIELD_PREFIX . $value['shortname'], $internalfields);
+        }
+    }
+
+    /**
+     * Test getting the list of empty external/custom profile fields.
+     *
+     * @covers \core\oauth2\user_field_mapping::get_internalfields
+     */
+    public function test_get_empty_internalfield_list(): void {
+
+        // Get internal (profile) fields.
+        $userfieldmapping = new user_field_mapping();
+        $internalfieldlist = $userfieldmapping->get_internalfields();
+
+        // Get user fields.
+        $userfields = array_merge(\core_user::AUTHSYNCFIELDS, ['picture', 'username']);
+
+        // Internal fields and user fields must exact same.
+        $this->assertEquals($userfields, $internalfieldlist);
+    }
+
+    /**
+     * Test getting Return the list of profile fields.
+     *
+     * @dataProvider create_custom_profile_fields
+     * @covers ::get_profile_field_list
+     * @param array $given Categories and profile fields.
+     * @param array $expected Expected value.
+     */
+    public function test_get_profile_field_list(array $given, array $expected): void {
+        $this->resetAfterTest();
+        self::generate_custom_profile_fields($given);
+
+        $profilefieldlist = get_profile_field_list();
+
+        foreach ($expected as $category => $value) {
+            $this->assertEquals(
+                $profilefieldlist[$category][\core_user\fields::PROFILE_FIELD_PREFIX . $value['shortname']],
+                $value['name']
+            );
+        }
+    }
+
+    /**
+     * Test getting the list of valid custom profile user fields.
+     *
+     * @dataProvider create_custom_profile_fields
+     * @covers ::get_profile_field_names
+     * @param array $given Categories and profile fields.
+     * @param array $expected Expected value.
+     */
+    public function test_get_profile_field_names(array $given, array $expected): void {
+        $this->resetAfterTest();
+        self::generate_custom_profile_fields($given);
+
+        $profilefieldnames = get_profile_field_names();
+
+        // Custom profile fields must exist.
+        foreach ($expected as $category => $value) {
+            $this->assertContains( \core_user\fields::PROFILE_FIELD_PREFIX . $value['shortname'], $profilefieldnames);
+        }
+    }
+
+    /**
+     * Generate data into DB for Testing getting user fields mapping.
+     *
+     * @param array $given Categories and profile fields.
+     */
+    private function generate_custom_profile_fields(array $given): void {
+        // Create a profile category and the profile fields.
+        foreach ($given as $category => $value) {
+            $customprofilefieldcategory = ['name' => $category, 'sortorder' => 1];
+            $category = $this->getDataGenerator()->create_custom_profile_field_category($customprofilefieldcategory);
+            $this->getDataGenerator()->create_custom_profile_field(
+                ['shortname' => $value['shortname'],
+                'name' => $value['name'],
+                'categoryid' => $category->id,
+                'required' => 1, 'visible' => 1, 'locked' => 0, 'datatype' => 'text', 'defaultdata' => null]);
+        }
+    }
+
 }

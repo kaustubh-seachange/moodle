@@ -28,6 +28,7 @@ import DndCmItem from 'core_courseformat/local/courseeditor/dndcmitem';
 import Templates from 'core/templates';
 import Prefetch from 'core/prefetch';
 import Config from 'core/config';
+import Pending from "core/pending";
 
 // Prefetch the completion icons template.
 const completionTemplate = 'core_courseformat/local/courseindex/cmcompletion';
@@ -52,6 +53,7 @@ export default class Component extends DndCmItem {
             LOCKED: 'editinprogress',
             RESTRICTIONS: 'restrictions',
             PAGEITEM: 'pageitem',
+            INDENTED: 'indented',
         };
         // We need our id to watch specific events.
         this.id = this.element.dataset.id;
@@ -65,7 +67,7 @@ export default class Component extends DndCmItem {
      * @return {Component}
      */
     static init(target, selectors) {
-        return new Component({
+        return new this({
             element: document.getElementById(target),
             selectors,
         });
@@ -85,9 +87,12 @@ export default class Component extends DndCmItem {
             state,
             element: cm,
         });
+        const url = new URL(window.location.href);
+        const anchor = url.hash.replace('#', '');
         // Check if the current url is the cm url.
-        if (window.location.href == cm.url || window.location.href == `${course.baseurl}#${cm.anchor}`) {
-            this.reactive.dispatch('setPageItem', 'cm', this.id);
+        if (window.location.href == cm.url
+            || (window.location.href.includes(course.baseurl) && anchor == cm.anchor)
+        ) {
             this.element.scrollIntoView({block: "center"});
         }
         // Check if this we are displaying this activity page.
@@ -95,8 +100,8 @@ export default class Component extends DndCmItem {
             this.reactive.dispatch('setPageItem', 'cm', this.id, true);
             this.element.scrollIntoView({block: "center"});
         }
-        // Add anchor logic if the element is not user visible.
-        if (!cm.uservisible) {
+        // Add anchor logic if the element is not user visible or the element hasn't URL.
+        if (!cm.uservisible || !cm.url) {
             this.addEventListener(
                 this.getElement(this.selectors.CM_NAME),
                 'click',
@@ -132,6 +137,7 @@ export default class Component extends DndCmItem {
         this.element.classList.toggle(this.classes.DRAGGING, element.dragging ?? false);
         this.element.classList.toggle(this.classes.LOCKED, element.locked ?? false);
         this.element.classList.toggle(this.classes.RESTRICTIONS, element.hascmrestrictions ?? false);
+        this.element.classList.toggle(this.classes.INDENTED, element.indent);
         this.locked = element.locked;
     }
 
@@ -166,7 +172,7 @@ export default class Component extends DndCmItem {
         }
         // Check if the completion value has changed.
         const completionElement = this.getElement(this.selectors.CM_COMPLETION);
-        if (completionElement.dataset.value == element.completionstate) {
+        if (!completionElement || completionElement.dataset.value == element.completionstate) {
             return;
         }
 
@@ -174,12 +180,8 @@ export default class Component extends DndCmItem {
         const exporter = this.reactive.getExporter();
         const data = exporter.cmCompletion(state, element);
 
-        try {
-            const {html, js} = await Templates.renderForPromise(completionTemplate, data);
-            Templates.replaceNode(completionElement, html, js);
-        } catch (error) {
-            throw error;
-        }
+        const {html, js} = await Templates.renderForPromise(completionTemplate, data);
+        Templates.replaceNode(completionElement, html, js);
     }
 
     /**
@@ -193,9 +195,13 @@ export default class Component extends DndCmItem {
         // the new url should be an anchor link.
         const element = document.getElementById(cm.anchor);
         if (element) {
+            // Make sure the section is expanded.
+            this.reactive.dispatch('sectionContentCollapsed', [cm.sectionid], false);
             // Marc the element as page item once the event is handled.
+            const pendingAnchor = new Pending(`courseformat/activity:openAnchor`);
             setTimeout(() => {
                 this.reactive.dispatch('setPageItem', 'cm', cm.id);
+                pendingAnchor.resolve();
             }, 50);
             return;
         }

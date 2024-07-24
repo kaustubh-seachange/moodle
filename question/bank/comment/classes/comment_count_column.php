@@ -30,6 +30,35 @@ use question_bank;
 class comment_count_column extends column_base {
 
     /**
+     * @var bool Comments enabled or not from config.
+     */
+    protected $commentsenabled = true;
+
+    /**
+     * Load javascript module if enabled.
+     *
+     * @return void
+     */
+    public function init(): void {
+        parent::init();
+        $this->check_comments_status();
+        if ($this->commentsenabled) {
+            global $PAGE;
+            $PAGE->requires->js_call_amd('qbank_comment/comment', 'init');
+        }
+    }
+
+    /**
+     * Check if comments is turned on in the system or not.
+     */
+    protected function check_comments_status(): void {
+        global $CFG;
+        if (!$CFG->usecomments) {
+            $this->commentsenabled = false;
+        }
+    }
+
+    /**
      * Get the name of the column, used internally.
      *
      * @return string
@@ -54,24 +83,24 @@ class comment_count_column extends column_base {
      * @param string $rowclasses Classes that can be added.
      */
     protected function display_content($question, $rowclasses): void {
-        global $DB, $PAGE;
+        global $DB;
+        $syscontext = \context_system::instance();
         $args = [
             'component' => 'qbank_comment',
             'commentarea' => 'question',
             'itemid' => $question->id,
-            'contextid' => 1
+            'contextid' => $syscontext->id,
         ];
         $commentcount = $DB->count_records('comments', $args);
         $attributes = [];
         if (question_has_capability_on($question, 'comment')) {
             $target = 'questioncommentpreview_' . $question->id;
-            $datatarget = '[data-target="' . $target . '"]';
-            $PAGE->requires->js_call_amd('qbank_comment/comment', 'init', [$datatarget]);
             $attributes = [
                 'href' => '#',
                 'data-target' => $target,
                 'data-questionid' => $question->id,
                 'data-courseid' => $this->qbank->course->id,
+                'data-contextid' => $syscontext->id,
             ];
         }
         echo \html_writer::tag('a', $commentcount, $attributes);
@@ -81,4 +110,7 @@ class comment_count_column extends column_base {
         return ['pr-3'];
     }
 
+    public function get_default_width(): int {
+        return 150;
+    }
 }

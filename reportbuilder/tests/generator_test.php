@@ -21,6 +21,7 @@ namespace core_reportbuilder;
 use advanced_testcase;
 use core_reportbuilder_generator;
 use core_reportbuilder\local\models\{audience, column, filter, report, schedule};
+use core_tag_tag;
 use core_user\reportbuilder\datasource\users;
 
 /**
@@ -44,9 +45,11 @@ class generator_test extends advanced_testcase {
 
         /** @var core_reportbuilder_generator $generator */
         $generator = $this->getDataGenerator()->get_plugin_generator('core_reportbuilder');
-        $report = $generator->create_report(['name' => 'My report', 'source' => users::class]);
+        $report = $generator->create_report(['name' => 'My report', 'source' => users::class, 'tags' => ['cat', 'dog']]);
 
         $this->assertTrue(report::record_exists($report->get('id')));
+        $this->assertEqualsCanonicalizing(['cat', 'dog'],
+            core_tag_tag::get_item_tags_array('core_reportbuilder', 'reportbuilder_report', $report->get('id')));
     }
 
     /**
@@ -65,6 +68,27 @@ class generator_test extends advanced_testcase {
     }
 
     /**
+     * Test creating a column, specifying additional properties
+     */
+    public function test_create_column_additional_properties(): void {
+        $this->resetAfterTest();
+
+        /** @var core_reportbuilder_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('core_reportbuilder');
+
+        $report = $generator->create_report(['name' => 'My report', 'source' => users::class, 'default' => 0]);
+        $column = $generator->create_column([
+            'reportid' => $report->get('id'),
+            'uniqueidentifier' => 'user:lastname',
+            'heading' => 'My pants',
+            'sortenabled' => 1,
+        ]);
+
+        $this->assertEquals('My pants', $column->get('heading'));
+        $this->assertTrue($column->get('sortenabled'));
+    }
+
+    /**
      * Test creating a filter
      */
     public function test_create_filter(): void {
@@ -80,6 +104,25 @@ class generator_test extends advanced_testcase {
     }
 
     /**
+     * Test creating a filter, specifying additional properties
+     */
+    public function test_create_filter_additional_properties(): void {
+        $this->resetAfterTest();
+
+        /** @var core_reportbuilder_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('core_reportbuilder');
+
+        $report = $generator->create_report(['name' => 'My report', 'source' => users::class, 'default' => 0]);
+        $filter = $generator->create_filter([
+            'reportid' => $report->get('id'),
+            'uniqueidentifier' => 'user:lastname',
+            'heading' => 'My pants',
+        ]);
+
+        $this->assertEquals('My pants', $filter->get('heading'));
+    }
+
+    /**
      * Test creating a condition
      */
     public function test_create_condition(): void {
@@ -92,6 +135,25 @@ class generator_test extends advanced_testcase {
         $condition = $generator->create_condition(['reportid' => $report->get('id'), 'uniqueidentifier' => 'user:lastname']);
 
         $this->assertTrue(filter::record_exists($condition->get('id')));
+    }
+
+    /**
+     * Test creating a condition, specifying additional properties
+     */
+    public function test_create_condition_additional_properties(): void {
+        $this->resetAfterTest();
+
+        /** @var core_reportbuilder_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('core_reportbuilder');
+
+        $report = $generator->create_report(['name' => 'My report', 'source' => users::class, 'default' => 0]);
+        $condition = $generator->create_condition([
+            'reportid' => $report->get('id'),
+            'uniqueidentifier' => 'user:lastname',
+            'heading' => 'My pants',
+        ]);
+
+        $this->assertEquals('My pants', $condition->get('heading'));
     }
 
     /**

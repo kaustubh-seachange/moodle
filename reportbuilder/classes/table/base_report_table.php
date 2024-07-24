@@ -21,7 +21,6 @@ namespace core_reportbuilder\table;
 use context;
 use moodle_url;
 use renderable;
-use table_default_export_format_parent;
 use table_sql;
 use html_writer;
 use core_table\dynamic;
@@ -30,7 +29,6 @@ use core_reportbuilder\local\filters\base;
 use core_reportbuilder\local\models\report;
 use core_reportbuilder\local\report\base as base_report;
 use core_reportbuilder\local\report\filter;
-use core_reportbuilder\output\dataformat_export_format;
 use core\output\notification;
 
 defined('MOODLE_INTERNAL') || die;
@@ -76,10 +74,13 @@ abstract class base_report_table extends table_sql implements dynamic, renderabl
             $wheres[] = $where;
         }
 
+        // Track the index of conditions/filters as we iterate over them.
+        $conditionindex = $filterindex = 0;
+
         // For each condition, we need to ensure their values are always accounted for in the report.
         $conditionvalues = $this->report->get_condition_values();
         foreach ($this->report->get_active_conditions() as $condition) {
-            [$conditionsql, $conditionparams] = $this->get_filter_sql($condition, $conditionvalues);
+            [$conditionsql, $conditionparams] = $this->get_filter_sql($condition, $conditionvalues, 'c' . $conditionindex++);
             if ($conditionsql !== '') {
                 $joins = array_merge($joins, $condition->get_joins());
                 $wheres[] = "({$conditionsql})";
@@ -91,7 +92,7 @@ abstract class base_report_table extends table_sql implements dynamic, renderabl
         if (!$this->editing) {
             $filtervalues = $this->report->get_filter_values();
             foreach ($this->report->get_active_filters() as $filter) {
-                [$filtersql, $filterparams] = $this->get_filter_sql($filter, $filtervalues);
+                [$filtersql, $filterparams] = $this->get_filter_sql($filter, $filtervalues, 'f' . $filterindex++);
                 if ($filtersql !== '') {
                     $joins = array_merge($joins, $filter->get_joins());
                     $wheres[] = "({$filtersql})";
@@ -141,13 +142,24 @@ abstract class base_report_table extends table_sql implements dynamic, renderabl
      *
      * @param filter $filter
      * @param array $filtervalues
+     * @param string $paramprefix
      * @return array [$sql, $params]
      */
-    private function get_filter_sql(filter $filter, array $filtervalues): array {
+    private function get_filter_sql(filter $filter, array $filtervalues, string $paramprefix): array {
         /** @var base $filterclass */
         $filterclass = $filter->get_filter_class();
 
-        return $filterclass::create($filter)->get_sql_filter($filtervalues);
+        // Retrieve SQL fragments from the filter instance, process parameters if required.
+        [$sql, $params] = $filterclass::create($filter)->get_sql_filter($filtervalues);
+        if ($paramprefix !== '' && count($params) > 0) {
+            return database::sql_replace_parameters(
+                $sql,
+                $params,
+                fn(string $param) => "{$paramprefix}_{$param}",
+            );
+        }
+
+        return [$sql, $params];
     }
 
     /**
@@ -188,14 +200,24 @@ abstract class base_report_table extends table_sql implements dynamic, renderabl
     /**
      * Override parent method of the same, to ensure that any columns with custom sort fields are accounted for
      *
+     * Because the base table_sql has "special" handling of fullname columns {@see table_sql::contains_fullname_columns}, we need
+     * to handle that here to ensure that any that are being sorted take priority over reportbuilders own aliases of the same
+     * columns. This prevents them appearing multiple times in a query, which SQL Server really doesn't like
+     *
      * @return string
      */
     public function get_sql_sort() {
         $columnsbyalias = $this->report->get_active_columns_by_alias();
         $columnsortby = [];
 
+        // First pass over sorted columns, to extract all the fullname fields from table_sql.
+        $sortedcolumns = $this->get_sort_columns();
+        $sortedcolumnsfullname = array_filter($sortedcolumns, static function(string $alias): bool {
+            return !preg_match('/^c[\d]+_/', $alias);
+        }, ARRAY_FILTER_USE_KEY);
+
         // Iterate over all sorted report columns, replace with columns own fields if applicable.
-        foreach ($this->get_sort_columns() as $alias => $order) {
+        foreach ($sortedcolumns as $alias => $order) {
             $column = $columnsbyalias[$alias] ?? null;
 
             // If the column is not being aggregated and defines custom sort fields, then use them.
@@ -210,24 +232,15 @@ abstract class base_report_table extends table_sql implements dynamic, renderabl
             }
         }
 
-        return static::construct_order_by($columnsortby);
-    }
-
-    /**
-     * Set the export class to use when downloading reports (TODO: consider applying to all tables, MDL-72058)
-     *
-     * @param table_default_export_format_parent|null $exportclass
-     * @return table_default_export_format_parent|null
-     */
-    public function export_class_instance($exportclass = null) {
-        if (is_null($this->exportclass) && $this->is_downloading()) {
-            $this->exportclass = new dataformat_export_format($this, $this->download);
-            if (!$this->exportclass->document_started()) {
-                $this->exportclass->start_document($this->filename, $this->sheettitle);
+        // Now ensure that any fullname sorted columns have duplicated aliases removed.
+        $columnsortby = array_filter($columnsortby, static function(string $alias) use ($sortedcolumnsfullname): bool {
+            if (preg_match('/^c[\d]+_(?<column>.*)$/', $alias, $matches)) {
+                return !array_key_exists($matches['column'], $sortedcolumnsfullname);
             }
-        }
+            return true;
+        }, ARRAY_FILTER_USE_KEY);
 
-        return $this->exportclass;
+        return static::construct_order_by($columnsortby);
     }
 
     /**
@@ -255,7 +268,9 @@ abstract class base_report_table extends table_sql implements dynamic, renderabl
         echo $this->get_dynamic_table_html_start();
         echo $this->render_reset_button();
 
-        echo $OUTPUT->render(new notification(get_string('nothingtodisplay'), notification::NOTIFY_INFO, false));
+        if ($notice = $this->report->get_default_no_results_notice()) {
+            echo $OUTPUT->render(new notification($notice->out(), notification::NOTIFY_INFO, false));
+        }
 
         echo $this->get_dynamic_table_html_end();
     }
@@ -272,7 +287,9 @@ abstract class base_report_table extends table_sql implements dynamic, renderabl
 
         $this->wrap_html_start();
 
+        $this->set_caption($this->report::get_name(), ['class' => 'sr-only']);
+
         echo html_writer::start_tag('div');
-        echo html_writer::start_tag('table', $this->attributes);
+        echo html_writer::start_tag('table', $this->attributes) . $this->render_caption();
     }
 }

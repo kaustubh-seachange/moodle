@@ -64,7 +64,7 @@ class userlist_collection implements \Iterator, \Countable {
      *
      * @return  int
      */
-    public function get_context() : \context {
+    public function get_context(): \context {
         return $this->context;
     }
 
@@ -74,7 +74,7 @@ class userlist_collection implements \Iterator, \Countable {
      * @param   userlist_base $userlist the userlist to export.
      * @return  $this
      */
-    public function add_userlist(userlist_base $userlist) : userlist_collection {
+    public function add_userlist(userlist_base $userlist): userlist_collection {
         $component = $userlist->get_component();
         if (isset($this->userlists[$component])) {
             throw new \moodle_exception("A userlist has already been added for the '{$component}' component");
@@ -91,7 +91,7 @@ class userlist_collection implements \Iterator, \Countable {
      * @return  array   the associative array of userlists in this collection, indexed by component name.
      * E.g. mod_assign => userlist, core_comment => userlist.
      */
-    public function get_userlists() : array {
+    public function get_userlists(): array {
         return $this->userlists;
     }
 
@@ -114,6 +114,7 @@ class userlist_collection implements \Iterator, \Countable {
      *
      * @return  \user
      */
+    #[\ReturnTypeWillChange]
     public function current() {
         $key = $this->get_key_from_position();
         return $this->userlists[$key];
@@ -124,6 +125,7 @@ class userlist_collection implements \Iterator, \Countable {
      *
      * @return  mixed
      */
+    #[\ReturnTypeWillChange]
     public function key() {
         return $this->get_key_from_position();
     }
@@ -131,7 +133,7 @@ class userlist_collection implements \Iterator, \Countable {
     /**
      * Move to the next user in the list.
      */
-    public function next() {
+    public function next(): void {
         ++$this->iteratorposition;
     }
 
@@ -140,7 +142,7 @@ class userlist_collection implements \Iterator, \Countable {
      *
      * @return  bool
      */
-    public function valid() {
+    public function valid(): bool {
         return ($this->iteratorposition < count($this->userlists));
     }
 
@@ -150,7 +152,7 @@ class userlist_collection implements \Iterator, \Countable {
      * The list of users is uniqued during the rewind.
      * The rewind is called at the start of most iterations.
      */
-    public function rewind() {
+    public function rewind(): void {
         $this->iteratorposition = 0;
     }
 
@@ -171,7 +173,7 @@ class userlist_collection implements \Iterator, \Countable {
     /**
      * Return the number of users.
      */
-    public function count() {
+    public function count(): int {
         return count($this->userlists);
     }
 }

@@ -29,7 +29,7 @@ class mustache_template_source_loader_test extends \advanced_testcase {
     /**
      * Ensure that stripping comments from templates does not mutilate the template body.
      */
-    public function test_strip_template_comments() {
+    public function test_strip_template_comments(): void {
 
         $templatebody = <<<'TBD'
         <h1>{{# str }} pluginname, mod_lemmings {{/ str }}</h1>
@@ -134,7 +134,7 @@ TBC;
     /**
      * Data provider for the test_load function.
      */
-    public function test_load_test_cases() {
+    public function load_test_cases() {
         $cache = [
             'core' => [
                 'test' => '{{! a comment }}The rest of the template'
@@ -163,21 +163,21 @@ TBC;
     /**
      * Test the load function.
      *
-     * @dataProvider test_load_test_cases()
+     * @dataProvider load_test_cases
      * @param mustache_template_source_loader $loader The loader
      * @param string $component The moodle component
      * @param string $name The template name
      * @param bool $includecomments Whether to strip comments
      * @param string $expected The expected output
      */
-    public function test_load($loader, $component, $name, $includecomments, $expected) {
+    public function test_load($loader, $component, $name, $includecomments, $expected): void {
         $this->assertEquals($expected, $loader->load($component, $name, 'boost', $includecomments));
     }
 
     /**
      * Data provider for the load_with_dependencies function.
      */
-    public function test_load_with_dependencies_test_cases() {
+    public function load_with_dependencies_test_cases() {
         // Create a bunch of templates that include one another in various ways. There is
         // multiple instances of recursive inclusions to test that the code doensn't get
         // stuck in an infinite loop.
@@ -330,21 +330,21 @@ TBC;
     /**
      * Test the load_with_dependencies function.
      *
-     * @dataProvider test_load_with_dependencies_test_cases()
+     * @dataProvider load_with_dependencies_test_cases
      * @param mustache_template_source_loader $loader The loader
      * @param string $component The moodle component
      * @param string $name The template name
      * @param bool $includecomments Whether to strip comments
      * @param string $expected The expected output
      */
-    public function test_load_with_dependencies($loader, $component, $name, $includecomments, $expected) {
+    public function test_load_with_dependencies($loader, $component, $name, $includecomments, $expected): void {
         $actual = $loader->load_with_dependencies($component, $name, 'boost', $includecomments);
         $this->assertEquals($expected, $actual);
     }
     /**
      * Data provider for the test_load function.
      */
-    public function test_scan_template_source_for_dependencies_test_cases() {
+    public function scan_template_source_for_dependencies_test_cases() {
         $foo = '{{! a comment }}{{> core/bar }}{{< test/bop }}{{/ test/bop}}{{#str}} help, core {{/str}}';
         $bar = '{{! a comment }}{{> core/baz }}';
         $baz = '{{! a comment }}{{#str}} hide, core {{/str}}';
@@ -488,12 +488,12 @@ TEMPLATE;
     /**
      * Test the scan_template_source_for_dependencies function.
      *
-     * @dataProvider test_scan_template_source_for_dependencies_test_cases()
+     * @dataProvider scan_template_source_for_dependencies_test_cases()
      * @param mustache_template_source_loader $loader The loader
      * @param string $source The template to test
      * @param string $expected The expected output
      */
-    public function test_scan_template_source_for_dependencies($loader, $source, $expected) {
+    public function test_scan_template_source_for_dependencies($loader, $source, $expected): void {
         $actual = \phpunit_util::call_internal_method(
             $loader,
             'scan_template_source_for_dependencies',
@@ -510,7 +510,7 @@ TEMPLATE;
      * @param array $cache A cache of templates
      * @return mustache_template_source_loader
      */
-    private function build_loader_from_static_cache(array $cache) : mustache_template_source_loader {
+    private function build_loader_from_static_cache(array $cache): mustache_template_source_loader {
         return new mustache_template_source_loader(function($component, $name, $themename) use ($cache) {
             return $cache[$component][$name];
         });

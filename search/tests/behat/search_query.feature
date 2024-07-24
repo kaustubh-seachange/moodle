@@ -93,15 +93,16 @@ Feature: Use global search interface
   @javascript
   Scenario: Check that groups option in search form appears when intended
     # Switch to mocked Solr search because simpledb doesn't support groups.
-    Given the following config values are set as admin:
+    Given solr is installed
+    And the following config values are set as admin:
       | searchengine | solr |
     And the following "groups" exist:
       | name    | course | idnumber |
       | A Group | F1     | G1       |
       | B Group | F1     | G2       |
     And the following "activities" exist:
-      | activity | name    | intro      | course | idnumber | groupmode |
-      | forum    | ForumSG | ForumDesc1 | F1     | FORUM2   | 1         |
+      | activity | name    | course | idnumber | groupmode |
+      | forum    | ForumSG | F1     | FORUM2   | 1         |
     When I am on the ForumSG "Forum activity" page
     And global search expects the query "frogs" and will return:
       | type     | idnumber |

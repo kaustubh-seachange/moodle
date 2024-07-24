@@ -36,7 +36,8 @@ $string['check_cookiesecure_http'] = 'You must turn on https in order to use sec
 $string['check_cookiesecure_name'] = 'Secure cookies';
 $string['check_cookiesecure_ok'] = 'Secure cookies enabled.';
 $string['check_defaultuserrole_details'] = '<p>All logged in users are given capabilities of the default user role. Please make sure no risky capabilities are allowed in this role.</p>
-<p>The only supported legacy type for the default user role is <em>Authenticated user</em>. The course view capability must not be enabled.</p>';
+<p>The only supported legacy type for the default user role is <em>Authenticated user</em>. The course view capability must not be enabled.</p>
+<p>Please check if the automatic data deletion request approval(tool_dataprivacy | automaticdatadeletionapproval) option is enabled. Users can request deletions that could delete large amounts of data.</p>';
 $string['check_defaultuserrole_error'] = 'The default user role "{$a}" is incorrectly defined!';
 $string['check_defaultuserrole_name'] = 'Default role for all users';
 $string['check_defaultuserrole_notset'] = 'Default role is not set.';
@@ -143,9 +144,3 @@ $string['pluginname'] = 'Security checks';
 $string['security:view'] = 'View security report';
 $string['timewarning'] = 'Data processing may take a long time, please be patient...';
 $string['privacy:metadata'] = 'The Security overview plugin does not store any personal data.';
-
-// Deprecated since Moodle 4.0.
-$string['check_mediafilterswf_details'] = '<p>Automatic swf embedding is very dangerous - any registered user may launch an XSS attack against other server users. Please disable it on production servers.</p>';
-$string['check_mediafilterswf_error'] = 'Flash media filter is enabled - this is very dangerous for the majority of servers.';
-$string['check_mediafilterswf_name'] = 'Enabled .swf media filter';
-$string['check_mediafilterswf_ok'] = 'Flash media filter is not enabled.';

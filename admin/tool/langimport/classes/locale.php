@@ -42,7 +42,7 @@ class locale {
      * @return bool TRUE if the locale is available on OS.
      * @throws coding_exception when $langpackcode parameter is a non-empty string.
      */
-    public function check_locale_availability(string $langpackcode) : bool {
+    public function check_locale_availability(string $langpackcode): bool {
         global $CFG;
 
         if (empty($langpackcode)) {
@@ -57,7 +57,7 @@ class locale {
         }
 
         // Store current locale.
-        $currentlocale = $this->set_locale(LC_ALL, 0);
+        $currentlocale = $this->get_locale();
 
         $locale = get_string_manager()->get_string($stringtofetch, 'langconfig', $a = null, $langpackcode);
 
@@ -79,6 +79,16 @@ class locale {
      * @return string|false Returns the new current locale, or FALSE on error.
      */
     protected function set_locale(int $category = LC_ALL, string $locale = '0') {
-        return setlocale($category, $locale);
+        return \core\locale::set_locale($category, $locale);
+    }
+
+    /**
+     * Get the current locale.
+     *
+     * @param int $category
+     * @return string|false
+     */
+    protected function get_locale(int $category = LC_ALL): string|false {
+        return \core\locale::get_locale($category);
     }
 }

@@ -47,7 +47,14 @@ class feedback_test extends \advanced_testcase {
         }
     }
 
-    protected function add_file_submission($student, $assign) {
+    /**
+     * Helper method to add a file to a submission.
+     *
+     * @param \stdClass $student Student submitting.
+     * @param \assign   $assign Assignment being submitted.
+     * @param bool     $textfile Use textfile fixture instead of pdf.
+     */
+    protected function add_file_submission($student, $assign, $textfile = false) {
         global $CFG;
 
         $this->setUser($student);
@@ -56,23 +63,23 @@ class feedback_test extends \advanced_testcase {
         $submission = $assign->get_user_submission($student->id, true);
 
         $fs = get_file_storage();
-        $pdfsubmission = (object) array(
+        $filerecord = (object) array(
             'contextid' => $assign->get_context()->id,
             'component' => 'assignsubmission_file',
             'filearea' => ASSIGNSUBMISSION_FILE_FILEAREA,
             'itemid' => $submission->id,
             'filepath' => '/',
-            'filename' => 'submission.pdf'
+            'filename' => $textfile ? 'submission.txt' : 'submission.pdf'
         );
-        $sourcefile = $CFG->dirroot.'/mod/assign/feedback/editpdf/tests/fixtures/submission.pdf';
-        $fs->create_file_from_pathname($pdfsubmission, $sourcefile);
+        $sourcefile = $CFG->dirroot . '/mod/assign/feedback/editpdf/tests/fixtures/submission.' . ($textfile ? 'txt' : 'pdf');
+        $fs->create_file_from_pathname($filerecord, $sourcefile);
 
         $data = new \stdClass();
         $plugin = $assign->get_submission_plugin_by_type('file');
         $plugin->save($submission, $data);
     }
 
-    public function test_comments_quick_list() {
+    public function test_comments_quick_list(): void {
         $this->resetAfterTest();
         $course = $this->getDataGenerator()->create_course();
         $teacher = $this->getDataGenerator()->create_and_enrol($course, 'teacher');
@@ -96,7 +103,7 @@ class feedback_test extends \advanced_testcase {
         $this->assertEmpty($comments);
     }
 
-    public function test_page_editor() {
+    public function test_page_editor(): void {
         $this->resetAfterTest();
         $course = $this->getDataGenerator()->create_course();
         $teacher = $this->getDataGenerator()->create_and_enrol($course, 'teacher');
@@ -195,7 +202,7 @@ class feedback_test extends \advanced_testcase {
         $this->assertFalse($notempty);
     }
 
-    public function test_document_services() {
+    public function test_document_services(): void {
         $this->require_ghostscript();
         $this->resetAfterTest();
         $course = $this->getDataGenerator()->create_course();
@@ -334,10 +341,10 @@ class feedback_test extends \advanced_testcase {
      *
      * @covers \assignfeedback_editpdf\task\convert_submission
      */
-    public function test_conversion_task() {
+    public function test_conversion_task(): void {
         $this->require_ghostscript();
         $this->resetAfterTest();
-        cron_setup_user();
+        \core\cron::setup_user();
 
         $course = $this->getDataGenerator()->create_course();
         $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
@@ -388,7 +395,8 @@ class feedback_test extends \advanced_testcase {
      * Test that modifying the annotated pdf form return true when modified
      * and false when not modified.
      */
-    public function test_is_feedback_modified() {
+    public function test_is_feedback_modified(): void {
+        $this->require_ghostscript();
         $this->resetAfterTest();
         $course = $this->getDataGenerator()->create_course();
         $teacher = $this->getDataGenerator()->create_and_enrol($course, 'teacher');
@@ -514,5 +522,90 @@ class feedback_test extends \advanced_testcase {
         $this->assertCount(2, page_editor::get_comments($grade->id, 0, true));
         // No modification.
         $this->assertFalse($plugin->is_feedback_modified($grade, $data));
+    }
+
+    /**
+     * Test that overwriting a submission file deletes any associated conversions.
+     *
+     * @covers \core_files\conversion::get_conversions_for_file
+     */
+    public function test_submission_file_overridden(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $assign = $this->create_instance($course, [
+            'assignsubmission_onlinetext_enabled' => 1,
+            'assignsubmission_file_enabled' => 1,
+            'assignsubmission_file_maxfiles' => 1,
+            'assignfeedback_editpdf_enabled' => 1,
+            'assignsubmission_file_maxsizebytes' => 1000000,
+        ]);
+
+        $this->add_file_submission($student, $assign, true);
+        $submission = $assign->get_user_submission($student->id, true);
+
+        $fs = get_file_storage();
+        $sourcefile = $fs->get_file(
+            $assign->get_context()->id,
+            'assignsubmission_file',
+            ASSIGNSUBMISSION_FILE_FILEAREA,
+            $submission->id,
+            '/',
+            'submission.txt'
+        );
+
+        $conversion = new \core_files\conversion(0, (object)[
+            'sourcefileid' => $sourcefile->get_id(),
+            'targetformat' => 'pdf'
+        ]);
+        $conversion->create();
+
+        $conversions = \core_files\conversion::get_conversions_for_file($sourcefile, 'pdf');
+        $this->assertCount(1, $conversions);
+
+        $filerecord = (object)[
+            'contextid' => $assign->get_context()->id,
+            'component' => 'core',
+            'filearea'  => 'unittest',
+            'itemid'    => $submission->id,
+            'filepath'  => '/',
+            'filename'  => 'submission.txt'
+        ];
+
+        $fs = get_file_storage();
+        $newfile = $fs->create_file_from_string($filerecord, 'something totally different');
+        $sourcefile->replace_file_with($newfile);
+
+        $conversions = \core_files\conversion::get_conversions_for_file($sourcefile, 'pdf');
+        $this->assertCount(0, $conversions);
+    }
+
+    /**
+     * Tests that when the plugin is not enabled for an assignment it does not create conversion tasks.
+     *
+     * @covers \assignfeedback_editpdf\event\observer
+     */
+    public function test_submission_not_enabled(): void {
+        $this->require_ghostscript();
+        $this->resetAfterTest();
+        \core\cron::setup_user();
+
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $assignopts = [
+            'assignsubmission_file_enabled' => 1,
+            'assignsubmission_file_maxfiles' => 1,
+            'assignfeedback_editpdf_enabled' => 0,
+            'assignsubmission_file_maxsizebytes' => 1000000,
+        ];
+        $assign = $this->create_instance($course, $assignopts);
+
+        // Add the standard submission.
+        $this->add_file_submission($student, $assign);
+
+        $task = \core\task\manager::get_next_adhoc_task(time());
+
+        // No task was created.
+        $this->assertNull($task);
     }
 }

@@ -158,7 +158,7 @@ class discussion_list {
         ?int $pagesize,
         int $displaymode = null,
         bool $enablediscussioncreation = true
-    ) : string {
+    ): string {
         global $PAGE;
 
         $forum = $this->forum;
@@ -197,6 +197,7 @@ class discussion_list {
             'gradingcomponent' => $this->forumgradeitem->get_grading_component_name(),
             'gradingcomponentsubtype' => $this->forumgradeitem->get_grading_component_subtype(),
             'sendstudentnotifications' => $forum->should_notify_students_default_when_grade_for_forum(),
+            'gradeonlyactiveusers' => $this->forumgradeitem->should_grade_only_active_users(),
             'hasanyactions' => $hasanyactions,
             'groupchangemenu' => groups_print_activity_menu(
                 $cm,
@@ -229,7 +230,7 @@ class discussion_list {
             $exportedposts = ($this->postprocessfortemplate) ($discussions, $user, $forum);
         }
 
-        $baseurl = new \moodle_url($PAGE->url, array('o' => $sortorder));
+        $baseurl = new \moodle_url($PAGE->url, ['o' => $sortorder, 's' => $pagesize]);
 
         $forumview = array_merge(
             $forumview,
@@ -331,7 +332,7 @@ class discussion_list {
      * @param   int         $pagesize The number of discussions to show on the page
      * @return  int         The normalised page size
      */
-    private function get_page_size(?int $pagesize) : int {
+    private function get_page_size(?int $pagesize): int {
         if (null === $pagesize || $pagesize <= 0) {
             $pagesize = discussion_list_vault::PAGESIZE_DEFAULT;
         }
@@ -345,7 +346,7 @@ class discussion_list {
      * @param   int         $pageno The zero-indexed page number to use
      * @return  int         The normalised page number
      */
-    private function get_page_number(?int $pageno) : int {
+    private function get_page_number(?int $pageno): int {
         if (null === $pageno || $pageno < 0) {
             $pageno = 0;
         }
@@ -377,7 +378,8 @@ class discussion_list {
                 get_string('thisforumisthrottled', 'forum', [
                     'blockafter' => $forum->get_block_after(),
                     'blockperiod' => get_string('secondstotime' . $forum->get_block_period())
-                ])
+                ]),
+                notification::NOTIFY_INFO
             ))->set_show_closebutton();
         }
 

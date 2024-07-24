@@ -36,15 +36,17 @@ Feature: Users can add the ##actionsmenu## replacement to the database templates
       | data1    | teacher1     | Teacher entry 1  | Some teacher content 1 |
     And I am on the "Test database name" "data activity" page logged in as teacher1
     And I navigate to "Templates" in current page administration
+    And I set the field "Templates tertiary navigation" to "List view template"
+    And I set the field "Enable code editor" to "0"
     And I set the following fields to these values:
       | Header         | <table>                                              |
       | Repeated entry | <tr><td>[[field1]]</td><td>##actionsmenu##</td><tr>  |
       | Footer         | </table>                                             |
-    And I click on "Save template" "button"
-    And I set the field "Templates tertiary navigation" to "Single template"
+    And I click on "Save" "button" in the "sticky-footer" "region"
+    And I set the field "Templates tertiary navigation" to "Single view template"
     And I set the following fields to these values:
-      | Single template | <table><tr><td>[[field1]]</td><td>[[field2]]</td><td>##actionsmenu##</td><tr></table> |
-    And I click on "Save template" "button"
+      | Single view template | <table><tr><td>[[field1]]</td><td>[[field2]]</td><td>##actionsmenu##</td><tr></table> |
+    And I click on "Save" "button" in the "sticky-footer" "region"
 
   @javascript
   Scenario: The ##actionsmenu## replacement displays the expected actions with default settings depending on the user permissions

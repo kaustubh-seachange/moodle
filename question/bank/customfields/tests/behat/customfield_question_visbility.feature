@@ -37,14 +37,12 @@ Feature: The visibility of question custom fields control where they are display
       | Correct answer                     | False                                   |
       | Feedback for the response 'True'.  | So you think it is true                 |
       | Feedback for the response 'False'. | So you think it is false                |
-    And I am on the "Test quiz name" "quiz activity" page
-    And I navigate to "Question bank" in current page administration
 
   @javascript
   Scenario: Display custom question fields to teachers based on their visibility.
-    When I choose "Edit question" action for "First question" in the question bank
-    And I should see "Category for test"
-    And I click on "Expand all" "link"
+    When I am on the "First question" "core_question > edit" page
+    Then I should see "Category for test"
+    And I expand all fieldsets
     And I should see "Field 1"
     And I should see "Field 2"
     And I should see "Field 3"
@@ -64,4 +62,4 @@ Feature: The visibility of question custom fields control where they are display
     And I should see "Field 2"
     And I should see "custom field text two"
     And I should see "Field 3"
-    Then I should see "secret"
+    And I should see "secret"

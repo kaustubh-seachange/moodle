@@ -23,7 +23,7 @@ use html_writer;
 use moodle_exception;
 use moodle_url;
 use stdClass;
-use core_reportbuilder\manager;
+use core_reportbuilder\{datasource, manager};
 use core_reportbuilder\local\models\report;
 use core_reportbuilder\local\report\column;
 use core_reportbuilder\output\column_aggregation_editable;
@@ -37,6 +37,9 @@ use core_reportbuilder\output\column_heading_editable;
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class custom_report_table extends base_report_table {
+
+    /** @var datasource $report */
+    protected $report;
 
     /** @var string Unique ID prefix for the table */
     private const UNIQUEID_PREFIX = 'custom-report-table-';
@@ -84,7 +87,7 @@ class custom_report_table extends base_report_table {
         // Retrieve all report columns, exit early if there are none. Defining empty columns prevents errors during out().
         $columns = $this->get_active_columns();
         if (empty($columns)) {
-            $this->init_sql('*', "{{$maintable}} {$maintablealias}", [], '1=0', []);
+            $this->init_sql("{$maintablealias}.*", "{{$maintable}} {$maintablealias}", $joins, '1=0', []);
             $this->define_columns([0]);
             return;
         }
@@ -94,8 +97,9 @@ class custom_report_table extends base_report_table {
             return !empty($column->get_aggregation());
         });
 
-        // Also take account of the report setting to show unique rows (only if no columns are being aggregated).
         $hasaggregatedcolumns = !empty($aggregatedcolumns);
+
+        // Also take account of the report setting to show unique rows (only if no columns are being aggregated).
         $showuniquerows = !$hasaggregatedcolumns && $this->persistent->get('uniquerows');
 
         $columnheaders = $columnsattributes = [];
@@ -103,9 +107,8 @@ class custom_report_table extends base_report_table {
             $columnheading = $column->get_persistent()->get_formatted_heading($this->report->get_context());
             $columnheaders[$column->get_column_alias()] = $columnheading !== '' ? $columnheading : $column->get_title();
 
-            // We need to determine for each column whether we should group by it's fields, to support aggregation.
-            $columnaggregation = $column->get_aggregation();
-            if ($showuniquerows || ($hasaggregatedcolumns && empty($columnaggregation))) {
+            // We need to determine for each column whether we should group by its fields, to support aggregation.
+            if ($showuniquerows || ($hasaggregatedcolumns && empty($column->get_aggregation()))) {
                 $groupby = array_merge($groupby, $column->get_groupby_sql());
             }
 
@@ -336,14 +339,20 @@ class custom_report_table extends base_report_table {
         $visiblecolumns = $this->report->get_settings_values()['cardview_visiblecolumns'] ?? 1;
         if ($visiblecolumns < count($this->columns)) {
             $buttonicon = html_writer::tag('i', '', ['class' => 'fa fa-angle-down']);
-            $buttonatttributes = [
+
+            // We need a cleaned version (without tags/entities) of the first row column to use as toggle button.
+            $rowfirstcolumn = strip_tags((string) reset($row));
+            $buttontitle = $rowfirstcolumn !== ''
+                ? get_string('showhide', 'core_reportbuilder', html_entity_decode($rowfirstcolumn, ENT_COMPAT))
+                : get_string('showhidecard', 'core_reportbuilder');
+
+            $button = html_writer::tag('button', $buttonicon, [
                 'type' => 'button',
                 'class' => 'btn collapsed',
-                'title' => get_string('showhide', 'core_reportbuilder', reset($row)),
+                'title' => $buttontitle,
                 'data-toggle' => 'collapse',
                 'data-action' => 'toggle-card'
-            ];
-            $button = html_writer::tag('button', $buttonicon, $buttonatttributes);
+            ]);
             $html .= html_writer::tag('td', $button, ['class' => 'card-toggle d-none']);
         }
         return $html;

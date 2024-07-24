@@ -68,16 +68,15 @@ class cmsummary implements named_templatable, renderable {
      */
     public function export_for_template(\renderer_base $output): stdClass {
 
-        list($mods, $complete, $total) = $this->calculate_section_stats();
+        list($mods, $complete, $total, $showcompletion) = $this->calculate_section_stats();
 
-        if (empty($mods)) {
-            return new stdClass();
-        }
-
+        $totalactivities = array_reduce($mods, fn($carry, $item) => $carry + ($item["count"] ?? 0), 0);
         $data = (object)[
+            'showcompletion' => $showcompletion,
             'total' => $total,
             'complete' => $complete,
             'mods' => array_values($mods),
+            'totalactivities' => $totalactivities,
         ];
 
         $data->modprogress = get_string('progresstotal', 'completion', $data);
@@ -104,6 +103,7 @@ class cmsummary implements named_templatable, renderable {
         $cmids = $modinfo->sections[$section->section] ?? [];
 
         $cancomplete = isloggedin() && !isguestuser();
+        $showcompletion = false;
         foreach ($cmids as $cmid) {
             $thismod = $modinfo->cms[$cmid];
 
@@ -116,6 +116,7 @@ class cmsummary implements named_templatable, renderable {
                     $mods[$thismod->modname]['count'] = 1;
                 }
                 if ($cancomplete && $completioninfo->is_enabled($thismod) != COMPLETION_TRACKING_NONE) {
+                    $showcompletion = true;
                     $total++;
                     $completiondata = $completioninfo->get_data($thismod, true);
                     if ($completiondata->completionstate == COMPLETION_COMPLETE ||
@@ -126,6 +127,6 @@ class cmsummary implements named_templatable, renderable {
             }
         }
 
-        return [$mods, $complete, $total];
+        return [$mods, $complete, $total, $showcompletion];
     }
 }

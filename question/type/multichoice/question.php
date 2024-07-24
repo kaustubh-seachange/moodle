@@ -104,7 +104,7 @@ abstract class qtype_multichoice_base extends question_graded_automatically {
 
     public function update_attempt_state_data_for_new_version(
             question_attempt_step $oldstep, question_definition $otherversion) {
-        parent::update_attempt_state_data_for_new_version($oldstep, $otherversion);
+        $startdata = parent::update_attempt_state_data_for_new_version($oldstep, $otherversion);
 
         $mapping = array_combine(array_keys($otherversion->answers), array_keys($this->answers));
 
@@ -113,8 +113,9 @@ abstract class qtype_multichoice_base extends question_graded_automatically {
         foreach ($oldorder as $oldid) {
             $neworder[] = $mapping[$oldid] ?? $oldid;
         }
+        $startdata['_order'] = implode(',', $neworder);
 
-        return ['_order' => implode(',', $neworder)];
+        return $startdata;
     }
 
     public function get_question_summary() {
@@ -138,9 +139,9 @@ abstract class qtype_multichoice_base extends question_graded_automatically {
         }
     }
 
-    public abstract function get_response(question_attempt $qa);
+    abstract public function get_response(question_attempt $qa);
 
-    public abstract function is_choice_selected($response, $value);
+    abstract public function is_choice_selected($response, $value);
 
     public function check_file_access($qa, $options, $component, $filearea, $args, $forcedownload) {
         if ($component == 'question' && in_array($filearea,
@@ -161,10 +162,9 @@ abstract class qtype_multichoice_base extends question_graded_automatically {
                     break;
                 }
             }
-            // Param $options->suppresschoicefeedback is a hack specific to the
-            // oumultiresponse question type. It would be good to refactor to
-            // avoid refering to it here.
-            return $options->feedback && empty($options->suppresschoicefeedback) &&
+            qtype_multichoice::support_legacy_review_options_hack($options);
+            return $options->feedback &&
+                    $options->feedback !== qtype_multichoice::COMBINED_BUT_NOT_CHOICE_FEEDBACK &&
                     $isselected;
 
         } else if ($component == 'question' && $filearea == 'hint') {

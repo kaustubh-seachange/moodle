@@ -20,7 +20,7 @@ defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
 require_once($CFG->libdir.'/simplepie/moodle_simplepie.php');
-
+require_once($CFG->libdir . '/rsslib.php');
 
 /**
  * These tests rely on the rsstest.xml file on download.moodle.org,
@@ -42,10 +42,11 @@ class rsslib_test extends \advanced_testcase {
     const TIMEOUT = 10;
 
     protected function setUp(): void {
+        parent::setUp();
         \moodle_simplepie::reset_cache();
     }
 
-    public function test_getfeed() {
+    public function test_getfeed(): void {
         $feed = new \moodle_simplepie($this->getExternalTestFileUrl('/rsstest.xml'), self::TIMEOUT);
 
         $this->assertInstanceOf('\moodle_simplepie', $feed);
@@ -99,7 +100,7 @@ EOD;
     /*
      * Test retrieving a url which doesn't exist.
      */
-    public function test_failurl() {
+    public function test_failurl(): void {
         global $CFG;
 
         // We do not want this in php error log.
@@ -113,7 +114,7 @@ EOD;
     /*
      * Test retrieving a url with broken proxy configuration.
      */
-    public function test_failproxy() {
+    public function test_failproxy(): void {
         global $CFG;
 
         $oldproxy = $CFG->proxyhost;
@@ -133,11 +134,26 @@ EOD;
     /*
      * Test retrieving a url which sends a redirect to another valid feed.
      */
-    public function test_redirect() {
+    public function test_redirect(): void {
         $feed = new \moodle_simplepie($this->getExternalTestFileUrl('/rss_redir.php'), self::TIMEOUT);
 
         $this->assertNull($feed->error());
         $this->assertSame('Moodle News', $feed->get_title());
         $this->assertSame('http://moodle.org/mod/forum/view.php?f=1', $feed->get_link());
+    }
+
+    /**
+     * Test that we can get the right user ID based on the provided private key (token).
+     *
+     * @covers ::rss_get_userid_from_token
+     */
+    public function test_rss_get_userid_from_token(): void {
+        global $USER;
+
+        $this->resetAfterTest();
+        $this->setGuestUser();
+
+        $key = rss_get_token($USER->id);
+        $this->assertSame(rss_get_userid_from_token($key), $USER->id);
     }
 }

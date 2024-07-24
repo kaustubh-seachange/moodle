@@ -211,7 +211,8 @@ foreach ($overrides as $override) {
     }
 
     // Format timelimit.
-    if (isset($override->timelimit)) {
+    $timelimitenabled = get_config('assign', 'enabletimelimit');
+    if ($timelimitenabled && isset($override->timelimit)) {
         $fields[] = get_string('timelimit', 'assign');
         $values[] = $override->timelimit > 0 ? format_time($override->timelimit) : get_string('none', 'assign');
     }
@@ -235,8 +236,8 @@ foreach ($overrides as $override) {
                 $OUTPUT->pix_icon('t/delete', get_string('delete')) . '</a> ';
 
     if ($groupmode) {
-        $usergroupstr = '<a href="' . $groupurl->out(true,
-                array('group' => $override->groupid)) . '" >' . $override->name . '</a>';
+        $usergroupstr = '<a href="' . $groupurl->out(true, ['group' => $override->groupid]) . '" >' .
+            format_string($override->name, true, ['context' => $context]) . '</a>';
 
         // Move up.
         if ($override->sortorder > 1) {

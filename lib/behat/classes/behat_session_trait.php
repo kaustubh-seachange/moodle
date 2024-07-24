@@ -30,6 +30,7 @@ use Behat\Mink\Exception\ExpectationException;
 use Behat\Mink\Exception\ElementNotFoundException;
 use Behat\Mink\Exception\NoSuchWindowException;
 use Behat\Mink\Session;
+use Behat\Testwork\Hook\Scope\HookScope;
 use Facebook\WebDriver\Exception\ScriptTimeoutException;
 use Facebook\WebDriver\WebDriverBy;
 use Facebook\WebDriver\WebDriverElement;
@@ -224,6 +225,22 @@ trait behat_session_trait {
     }
 
     /**
+     * Get a description of the selector and locator to use in an exception message.
+     *
+     * @param string $selector The type of locator
+     * @param mixed $locator The locator text
+     * @return string
+     */
+    protected function get_selector_description(string $selector, $locator): string {
+        if ($selector === 'NodeElement') {
+            $description = $locator->getText();
+            return "'{$description}' {$selector}";
+        }
+
+        return "'{$locator}' {$selector}";
+    }
+
+    /**
      * Send key presses straight to the currently active element.
      *
      * The `$keys` array contains a list of key values to send to the session as defined in the WebDriver and JsonWire
@@ -329,7 +346,7 @@ trait behat_session_trait {
      * an exception.
      *
      * @throws Exception If it timeouts without receiving something != false from the closure
-     * @param Function|array|string $lambda The function to execute or an array passed to call_user_func (maps to a class method)
+     * @param callable $lambda The function to execute or an array passed to call_user_func (maps to a class method)
      * @param mixed $args Arguments to pass to the closure
      * @param int $timeout Timeout in seconds
      * @param Exception $exception The exception to throw in case it time outs.
@@ -423,13 +440,12 @@ trait behat_session_trait {
         if ($containerselectortype === 'NodeElement' && is_a($containerelement, NodeElement::class)) {
             // Support a NodeElement being passed in for use in step chaining.
             $containernode = $containerelement;
-            $locatorexceptionmsg = $element;
         } else {
             // Gets the container, it will always be text based.
             $containernode = $this->get_text_selector_node($containerselectortype, $containerelement);
-            $locatorexceptionmsg = $element . '" in the "' . $containerelement. '" "' . $containerselectortype. '"';
         }
 
+        $locatorexceptionmsg = $element . '" in the "' . $this->get_selector_description($containerselectortype, $containerelement);
         $exception = new ElementNotFoundException($this->getSession(), $selectortype, null, $locatorexceptionmsg);
 
         return $this->find($selectortype, $element, $exception, $containernode);
@@ -512,7 +528,7 @@ trait behat_session_trait {
      * @return boolean
      */
     protected static function running_javascript_in_session(Session $session): bool {
-        return get_class($session->getDriver()) !== 'Behat\Mink\Driver\GoutteDriver';
+        return get_class($session->getDriver()) !== 'Behat\Mink\Driver\BrowserKitDriver';
     }
 
     /**
@@ -539,7 +555,7 @@ trait behat_session_trait {
      *
      * @return bool True if it's in the app
      */
-    protected function is_in_app() : bool {
+    protected function is_in_app(): bool {
         // Cannot be in the app if there's no @app tag on scenario.
         if (!$this->has_tag('app')) {
             return false;
@@ -711,29 +727,12 @@ trait behat_session_trait {
     }
 
     /**
-     * Ensures that all the page's editors are loaded.
-     *
-     * @deprecated since Moodle 2.7 MDL-44084 - please do not use this function any more.
-     * @throws ElementNotFoundException
-     * @throws ExpectationException
-     * @return void
-     */
-    protected function ensure_editors_are_loaded() {
-        global $CFG;
-
-        if (empty($CFG->behat_usedeprecated)) {
-            debugging('Function behat_base::ensure_editors_are_loaded() is deprecated. It is no longer required.');
-        }
-        return;
-    }
-
-    /**
      * Checks if the current scenario, or its feature, has a specified tag.
      *
      * @param string $tag Tag to check
      * @return bool True if the tag exists in scenario or feature
      */
-    public function has_tag(string $tag) : bool {
+    public function has_tag(string $tag): bool {
         return array_key_exists($tag, behat_hooks::get_tags_for_scenario());
     }
 
@@ -924,7 +923,7 @@ EOF;
                         $msgs[] = $errnostring . ": " .$error['message'] . " at " . $error['file'] . ": " . $error['line'];
                     }
                     $msg = "PHP errors found:\n" . implode("\n", $msgs);
-                    throw new \Exception(htmlentities($msg));
+                    throw new \Exception(htmlentities($msg, ENT_COMPAT));
                 }
 
                 return;
@@ -962,7 +961,7 @@ EOF;
                 }
 
                 $msg = "Moodle exception: " . $errormsg->getText() . "\n" . $errorinfo;
-                throw new \Exception(html_entity_decode($msg));
+                throw new \Exception(html_entity_decode($msg, ENT_COMPAT));
             }
 
             // Debugging messages.
@@ -972,7 +971,7 @@ EOF;
                     $msgs[] = $this->get_debug_text($debuggingmessage->getHtml());
                 }
                 $msg = "debugging() message/s found:\n" . implode("\n", $msgs);
-                throw new \Exception(html_entity_decode($msg));
+                throw new \Exception(html_entity_decode($msg, ENT_COMPAT));
             }
 
             // PHP debug messages.
@@ -983,7 +982,7 @@ EOF;
                     $msgs[] = $this->get_debug_text($phpmessage->getHtml());
                 }
                 $msg = "PHP debug message/s found:\n" . implode("\n", $msgs);
-                throw new \Exception(html_entity_decode($msg));
+                throw new \Exception(html_entity_decode($msg, ENT_COMPAT));
             }
 
             // Any other backtrace.
@@ -997,7 +996,7 @@ EOF;
                         $msgs[] = $backtrace . '()';
                     }
                     $msg = "Other backtraces found:\n" . implode("\n", $msgs);
-                    throw new \Exception(htmlentities($msg));
+                    throw new \Exception(htmlentities($msg, ENT_COMPAT));
                 }
             }
 
@@ -1005,6 +1004,35 @@ EOF;
             // If we were interacting with a popup window it will not exists after closing it.
         } catch (DriverException $e) {
             // Same reason as above.
+        }
+    }
+
+    /**
+     * Internal step definition to find deprecated styles.
+     *
+     * Part of behat_hooks class as is part of the testing framework, is auto-executed
+     * after each step so no features will splicitly use it.
+     *
+     * @throws Exception Unknown type, depending on what we caught in the hook or basic \Exception.
+     * @see Moodle\BehatExtension\Tester\MoodleStepTester
+     */
+    public function look_for_deprecated_styles() {
+        if (!behat_config_manager::get_behat_run_config_value('scss-deprecations')) {
+            return;
+        }
+
+        if (!$this->running_javascript()) {
+            return;
+        }
+
+        // Look for any DOM element with deprecated message in before pseudo-element.
+        $js = <<<EOF
+            [...document.querySelectorAll('*')].some(
+                el => window.getComputedStyle(el, ':before').content === '"Deprecated style in use"'
+            );
+        EOF;
+        if ($this->evaluate_script($js)) {
+            throw new \Exception(html_entity_decode("Deprecated style in use", ENT_COMPAT));
         }
     }
 
@@ -1025,7 +1053,7 @@ EOF;
      * Helper function to execute api in a given context.
      *
      * @param string $contextapi context in which api is defined.
-     * @param array $params list of params to pass.
+     * @param array|mixed $params list of params to pass or a single parameter
      * @throws Exception
      */
     protected function execute($contextapi, $params = array()) {
@@ -1046,6 +1074,32 @@ EOF;
 
         // Look for exceptions.
         $this->look_for_exceptions();
+
+        // Look for deprecated styles.
+        $this->look_for_deprecated_styles();
+    }
+
+    /**
+     * Execute a function in a specific behat context.
+     *
+     * For example, to call the 'set_editor_value' function for all editors, you would call:
+     *
+     *     behat_base::execute_in_matching_contexts('editor', 'set_editor_value', ['Some value']);
+     *
+     * This would find all behat contexts whose class name starts with 'behat_editor_' and
+     * call the 'set_editor_value' function on that context.
+     *
+     * @param string $prefix
+     * @param string $method
+     * @param array $params
+     */
+    public static function execute_in_matching_contexts(string $prefix, string $method, array $params): void {
+        $contexts = behat_context_helper::get_prefixed_contexts("behat_{$prefix}_");
+        foreach ($contexts as $context) {
+            if (method_exists($context, $method) && is_callable([$context, $method])) {
+                call_user_func_array([$context, $method], $params);
+            }
+        }
     }
 
     /**
@@ -1109,53 +1163,12 @@ EOF;
      * @return context
      */
     public static function get_context(string $levelname, string $contextref): context {
-        global $DB;
-
-        // Getting context levels and names (we will be using the English ones as it is the test site language).
-        $contextlevels = context_helper::get_all_levels();
-        $contextnames = array();
-        foreach ($contextlevels as $level => $classname) {
-            $contextnames[context_helper::get_level_name($level)] = $level;
+        $context = \core\context_helper::resolve_behat_reference($levelname, $contextref);
+        if ($context) {
+            return $context;
         }
 
-        if (empty($contextnames[$levelname])) {
-            throw new Exception('The specified "' . $levelname . '" context level does not exist');
-        }
-        $contextlevel = $contextnames[$levelname];
-
-        // Return it, we don't need to look for other internal ids.
-        if ($contextlevel == CONTEXT_SYSTEM) {
-            return context_system::instance();
-        }
-
-        switch ($contextlevel) {
-
-            case CONTEXT_USER:
-                $instanceid = $DB->get_field('user', 'id', array('username' => $contextref));
-                break;
-
-            case CONTEXT_COURSECAT:
-                $instanceid = $DB->get_field('course_categories', 'id', array('idnumber' => $contextref));
-                break;
-
-            case CONTEXT_COURSE:
-                $instanceid = $DB->get_field('course', 'id', array('shortname' => $contextref));
-                break;
-
-            case CONTEXT_MODULE:
-                $instanceid = $DB->get_field('course_modules', 'id', array('idnumber' => $contextref));
-                break;
-
-            default:
-                break;
-        }
-
-        $contextclass = $contextlevels[$contextlevel];
-        if (!$context = $contextclass::instance($instanceid, IGNORE_MISSING)) {
-            throw new Exception('The specified "' . $contextref . '" context reference does not exist');
-        }
-
-        return $context;
+        throw new Exception("The specified context \"$levelname, $contextref\" does not exist");
     }
 
     /**
@@ -1282,7 +1295,7 @@ EOF;
      * @param int $timeout One of the TIMEOUT constants
      * @return int Actual timeout (in seconds)
      */
-    protected static function get_real_timeout(int $timeout) : int {
+    protected static function get_real_timeout(int $timeout): int {
         global $CFG;
         if (!empty($CFG->behat_increasetimeout)) {
             return $timeout * $CFG->behat_increasetimeout;
@@ -1298,7 +1311,7 @@ EOF;
      *
      * @return int Timeout in seconds
      */
-    public static function get_timeout() : int {
+    public static function get_timeout(): int {
         return self::get_real_timeout(6);
     }
 
@@ -1311,7 +1324,7 @@ EOF;
      *
      * @return int Timeout in seconds
      */
-    public static function get_reduced_timeout() : int {
+    public static function get_reduced_timeout(): int {
         return self::get_real_timeout(2);
     }
 
@@ -1322,7 +1335,7 @@ EOF;
      *
      * @return int Timeout in seconds
      */
-    public static function get_extended_timeout() : int {
+    public static function get_extended_timeout(): int {
         return self::get_real_timeout(10);
     }
 
@@ -1596,5 +1609,90 @@ EOF;
         $instancedata = $acttable->extract_from_result($result);
 
         return get_fast_modinfo($course)->get_cm($result->cmid);
+    }
+
+    /**
+     * Check whether any of the tags availble to the current scope match using the given callable.
+     *
+     * This function is typically called from within a Behat Hook, such as BeforeFeature, BeforeScenario, AfterStep, etc.
+     *
+     * The callable is used as the second argument to `array_filter()`, and is passed a single string argument for each of the
+     * tags available in the scope.
+     *
+     * The tags passed will include:
+     * - For a FeatureScope, the Feature tags only
+     * - For a ScenarioScope, the Feature and Scenario tags
+     * - For a StepScope, the Feature, Scenario, and Step tags
+     *
+     * An example usage may be:
+     *
+     *    // Note: phpDoc beforeStep attribution not shown.
+     *    public function before_step(StepScope $scope) {
+     *        $callback = function (string $tag): bool {
+     *            return $tag === 'editor_atto' || substr($tag, 0, 5) === 'atto_';
+     *        };
+     *
+     *        if (!self::scope_tags_match($scope, $callback)) {
+     *            return;
+     *        }
+     *
+     *        // Do something here.
+     *    }
+     *
+     * @param HookScope $scope The scope to check
+     * @param callable $callback The callable to use to check the scope
+     * @return boolean Whether any of the scope tags match
+     */
+    public static function scope_tags_match(HookScope $scope, callable $callback): bool {
+        $tags = [];
+
+        if (is_subclass_of($scope, \Behat\Behat\Hook\Scope\FeatureScope::class)) {
+            $tags = $scope->getFeature()->getTags();
+        }
+
+        if (is_subclass_of($scope, \Behat\Behat\Hook\Scope\ScenarioScope::class)) {
+            $tags = array_merge(
+                $scope->getFeature()->getTags(),
+                $scope->getScenario()->getTags()
+            );
+        }
+
+        if (is_subclass_of($scope, \Behat\Behat\Hook\Scope\StepScope::class)) {
+            $tags = array_merge(
+                $scope->getFeature()->getTags(),
+                $scope->getScenario()->getTags(),
+                $scope->getStep()->getTags()
+            );
+        }
+
+        $matches = array_filter($tags, $callback);
+
+        return !empty($matches);
+    }
+
+    /**
+     * Get the user id from an identifier.
+     *
+     * The user username and email fields are checked.
+     *
+     * @param string $identifier The user's username or email.
+     * @return int|null The user id or null if not found.
+     */
+    protected function get_user_id_by_identifier(string $identifier): ?int {
+        global $DB;
+
+        $sql = <<<EOF
+    SELECT id
+      FROM {user}
+     WHERE username = :username
+        OR email = :email
+EOF;
+
+        $result = $DB->get_field_sql($sql, [
+            'username' => $identifier,
+            'email' => $identifier,
+        ]);
+
+        return $result ?: null;
     }
 }

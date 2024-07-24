@@ -14,18 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-/**
- * External user API
- *
- * @package    core_user
- * @category   external
- * @copyright  2009 Petr Skodak
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-
-defined('MOODLE_INTERNAL') || die();
-
-require_once("$CFG->libdir/externallib.php");
+use core_external\external_description;
+use core_external\external_value;
+use core_external\external_format_value;
+use core_external\external_single_structure;
+use core_external\external_multiple_structure;
+use core_external\external_function_parameters;
+use core_external\external_warnings;
 
 /**
  * User external functions
@@ -36,7 +31,7 @@ require_once("$CFG->libdir/externallib.php");
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @since Moodle 2.2
  */
-class core_user_external extends external_api {
+class core_user_external extends \core_external\external_api {
 
     /**
      * Returns description of method parameters
@@ -59,7 +54,7 @@ class core_user_external extends external_api {
             'firstname' => new external_value(core_user::get_property_type('firstname'), 'The first name(s) of the user'),
             'lastname' => new external_value(core_user::get_property_type('lastname'), 'The family name of the user'),
             'email' => new external_value(core_user::get_property_type('email'), 'A valid and unique email address'),
-            'maildisplay' => new external_value(core_user::get_property_type('maildisplay'), 'Email display', VALUE_OPTIONAL),
+            'maildisplay' => new external_value(core_user::get_property_type('maildisplay'), 'Email visibility', VALUE_OPTIONAL),
             'city' => new external_value(core_user::get_property_type('city'), 'Home city of the user', VALUE_OPTIONAL),
             'country' => new external_value(core_user::get_property_type('country'),
                 'Home country code of the user, such as AU or CZ', VALUE_OPTIONAL),
@@ -415,18 +410,6 @@ class core_user_external extends external_api {
         if (!empty($preferences)) {
             $userpref = ['id' => $userid];
             foreach ($preferences as $preference) {
-
-                /*
-                 * Rename user message provider preferences to avoid orphan settings on old app versions.
-                 * @todo Remove this "translation" block on MDL-73284.
-                 */
-                if (preg_match('/message_provider_.*_loggedin/', $preference['type']) ||
-                        preg_match('/message_provider_.*_loggedoff/', $preference['type'])) {
-                    $nameparts = explode('_', $preference['type']);
-                    array_pop($nameparts);
-                    $preference['type'] = implode('_', $nameparts).'_enabled';
-                }
-
                 $userpref['preference_' . $preference['type']] = $preference['value'];
             }
             useredit_update_user_preference($userpref);
@@ -486,7 +469,7 @@ class core_user_external extends external_api {
                 VALUE_OPTIONAL),
             'email' => new external_value(core_user::get_property_type('email'), 'A valid and unique email address', VALUE_OPTIONAL,
                 '', NULL_NOT_ALLOWED),
-            'maildisplay' => new external_value(core_user::get_property_type('maildisplay'), 'Email display', VALUE_OPTIONAL),
+            'maildisplay' => new external_value(core_user::get_property_type('maildisplay'), 'Email visibility', VALUE_OPTIONAL),
             'city' => new external_value(core_user::get_property_type('city'), 'Home city of the user', VALUE_OPTIONAL),
             'country' => new external_value(core_user::get_property_type('country'),
                 'Home country code of the user, such as AU or CZ', VALUE_OPTIONAL),
@@ -1117,7 +1100,7 @@ class core_user_external extends external_api {
      * Create user return value description.
      *
      * @param array $additionalfields some additional field
-     * @return single_structure_description
+     * @return external_description
      */
     public static function user_description($additionalfields = array()) {
         $userfields = array(
@@ -1144,6 +1127,8 @@ class core_user_external extends external_api {
             'theme'       => new external_value(core_user::get_property_type('theme'), 'Theme name such as "standard", must exist on server', VALUE_OPTIONAL),
             'timezone'    => new external_value(core_user::get_property_type('timezone'), 'Timezone code such as Australia/Perth, or 99 for default', VALUE_OPTIONAL),
             'mailformat'  => new external_value(core_user::get_property_type('mailformat'), 'Mail format code is 0 for plain text, 1 for HTML etc', VALUE_OPTIONAL),
+            'trackforums'  => new external_value(core_user::get_property_type('trackforums'),
+                'Whether the user is tracking forums.', VALUE_OPTIONAL),
             'description' => new external_value(core_user::get_property_type('description'), 'User profile description', VALUE_OPTIONAL),
             'descriptionformat' => new external_format_value(core_user::get_property_type('descriptionformat'), VALUE_OPTIONAL),
             'city'        => new external_value(core_user::get_property_type('city'), 'Home city of the user', VALUE_OPTIONAL),
@@ -1154,7 +1139,9 @@ class core_user_external extends external_api {
                 new external_single_structure(
                     array(
                         'type'  => new external_value(PARAM_ALPHANUMEXT, 'The type of the custom field - text field, checkbox...'),
-                        'value' => new external_value(PARAM_RAW, 'The value of the custom field'),
+                        'value' => new external_value(PARAM_RAW, 'The value of the custom field (as stored in the database)'),
+                        'displayvalue' => new external_value(PARAM_RAW, 'The value of the custom field for display',
+                            VALUE_OPTIONAL),
                         'name' => new external_value(PARAM_RAW, 'The name of the custom field'),
                         'shortname' => new external_value(PARAM_RAW, 'The shortname of the custom field - to be able to build the field class in the code'),
                     )
@@ -1191,6 +1178,7 @@ class core_user_external extends external_api {
      * Copy files from a draft area to users private files area.
      *
      * @throws invalid_parameter_exception
+     * @throws moodle_exception
      * @param int $draftid Id of a draft area containing files.
      * @return array An array of warnings
      * @since Moodle 2.6
@@ -1213,6 +1201,17 @@ class core_user_external extends external_api {
         if (has_capability('moodle/user:ignoreuserquota', $context)) {
             $maxbytes = USER_CAN_IGNORE_FILE_SIZE_LIMITS;
             $maxareabytes = FILE_AREA_MAX_BYTES_UNLIMITED;
+        } else {
+            // Get current used space for this user (private files only).
+            $fileareainfo = file_get_file_area_info($context->id, 'user', 'private');
+            $usedspace = $fileareainfo['filesize_without_references'];
+
+            // Get the total size of the new files we want to add to private files.
+            $newfilesinfo = file_get_draft_area_info($params['draftid']);
+
+            if (($newfilesinfo['filesize_without_references'] + $usedspace) > $maxareabytes) {
+                throw new moodle_exception('maxareabytes');
+            }
         }
 
         $options = array('subdirs' => 1,
@@ -1250,7 +1249,8 @@ class core_user_external extends external_api {
                 'platform'  => new external_value(PARAM_NOTAGS, 'the device platform \'iOS\' or \'Android\' etc.'),
                 'version'   => new external_value(PARAM_NOTAGS, 'the device version \'6.1.2\' or \'4.2.2\' etc.'),
                 'pushid'    => new external_value(PARAM_RAW, 'the device PUSH token/key/identifier/registration id'),
-                'uuid'      => new external_value(PARAM_RAW, 'the device UUID')
+                'uuid'      => new external_value(PARAM_RAW, 'the device UUID'),
+                'publickey' => new external_value(PARAM_RAW, 'the app generated public key', VALUE_DEFAULT, null),
             )
         );
     }
@@ -1266,10 +1266,11 @@ class core_user_external extends external_api {
      * @param string $version The device version 6.1.2 or 4.2.2 etc.
      * @param string $pushid The device PUSH token/key/identifier/registration id.
      * @param string $uuid The device UUID.
+     * @param string $publickey The app generated public key
      * @return array List of possible warnings.
      * @since Moodle 2.6
      */
-    public static function add_user_device($appid, $name, $model, $platform, $version, $pushid, $uuid) {
+    public static function add_user_device($appid, $name, $model, $platform, $version, $pushid, $uuid, $publickey = null) {
         global $CFG, $USER, $DB;
         require_once($CFG->dirroot . "/user/lib.php");
 
@@ -1280,7 +1281,8 @@ class core_user_external extends external_api {
                       'platform' => $platform,
                       'version' => $version,
                       'pushid' => $pushid,
-                      'uuid' => $uuid
+                      'uuid' => $uuid,
+                      'publickey' => $publickey,
                       ));
 
         $warnings = array();
@@ -1303,6 +1305,7 @@ class core_user_external extends external_api {
             foreach ($userdevices as $userdevice) {
                 $userdevice->version    = $params['version'];   // Maybe the user upgraded the device.
                 $userdevice->pushid     = $params['pushid'];
+                $userdevice->publickey  = $params['publickey'];
                 $userdevice->timemodified  = time();
                 $DB->update_record('user_devices', $userdevice);
             }
@@ -1317,6 +1320,7 @@ class core_user_external extends external_api {
             $userdevice->version    = $params['version'];
             $userdevice->pushid     = $params['pushid'];
             $userdevice->uuid       = $params['uuid'];
+            $userdevice->publickey  = $params['publickey'];
             $userdevice->timecreated  = time();
             $userdevice->timemodified = $userdevice->timecreated;
 
@@ -1790,7 +1794,8 @@ class core_user_external extends external_api {
                         array(
                             'name' => new external_value(PARAM_RAW, 'The name of the preference'),
                             'value' => new external_value(PARAM_RAW, 'The value of the preference'),
-                            'userid' => new external_value(PARAM_INT, 'Id of the user to set the preference'),
+                            'userid' => new external_value(PARAM_INT,
+                                'Id of the user to set the preference (default to current user)', VALUE_DEFAULT, 0),
                         )
                     )
                 )
@@ -1807,29 +1812,31 @@ class core_user_external extends external_api {
      * @throws moodle_exception
      */
     public static function set_user_preferences($preferences) {
-        global $USER;
+        global $PAGE, $USER;
 
         $params = self::validate_parameters(self::set_user_preferences_parameters(), array('preferences' => $preferences));
         $warnings = array();
         $saved = array();
 
         $context = context_system::instance();
-        self::validate_context($context);
+        $PAGE->set_context($context);
 
         $userscache = array();
         foreach ($params['preferences'] as $pref) {
+            $userid = $pref['userid'] ?: $USER->id;
+
             // Check to which user set the preference.
-            if (!empty($userscache[$pref['userid']])) {
-                $user = $userscache[$pref['userid']];
+            if (!empty($userscache[$userid])) {
+                $user = $userscache[$userid];
             } else {
                 try {
-                    $user = core_user::get_user($pref['userid'], '*', MUST_EXIST);
+                    $user = core_user::get_user($userid, '*', MUST_EXIST);
                     core_user::require_active_user($user);
-                    $userscache[$pref['userid']] = $user;
+                    $userscache[$userid] = $user;
                 } catch (Exception $e) {
                     $warnings[] = array(
                         'item' => 'user',
-                        'itemid' => $pref['userid'],
+                        'itemid' => $userid,
                         'warningcode' => 'invaliduser',
                         'message' => $e->getMessage()
                     );
@@ -1838,7 +1845,18 @@ class core_user_external extends external_api {
             }
 
             try {
-                if (core_user::can_edit_preference($pref['name'], $user)) {
+
+                // Support legacy preferences from the old M.util.set_user_preference API (always using the current user).
+                if (isset($USER->ajax_updatable_user_prefs[$pref['name']])) {
+                    debugging('Updating preferences via ajax_updatable_user_prefs is deprecated. ' .
+                        'Please use the "core_user/repository" module instead.', DEBUG_DEVELOPER);
+
+                    set_user_preference($pref['name'], $pref['value']);
+                    $saved[] = array(
+                        'name' => $pref['name'],
+                        'userid' => $USER->id,
+                    );
+                } else if (core_user::can_edit_preference($pref['name'], $user)) {
                     $value = core_user::clean_preference($pref['value'], $pref['name']);
                     set_user_preference($pref['name'], $value, $user->id);
                     $saved[] = array(

@@ -19,6 +19,7 @@ namespace mod_data;
 use context_module;
 use moodle_url;
 use core_component;
+use stdClass;
 
 /**
  * Manager tests class for mod_data.
@@ -38,7 +39,7 @@ class manager_test extends \advanced_testcase {
      * @covers ::create_from_coursemodule
      * @covers ::create_from_data_record
      */
-    public function test_create() {
+    public function test_create(): void {
 
         $this->resetAfterTest();
         $this->setAdminUser();
@@ -86,7 +87,7 @@ class manager_test extends \advanced_testcase {
      * Test set_module_viewed
      * @covers ::set_module_viewed
      */
-    public function test_set_module_viewed() {
+    public function test_set_module_viewed(): void {
         global $CFG;
 
         $CFG->enablecompletion = 1;
@@ -132,7 +133,7 @@ class manager_test extends \advanced_testcase {
      * Test set_template_viewed
      * @covers ::set_template_viewed
      */
-    public function test_set_template_viewed() {
+    public function test_set_template_viewed(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
 
@@ -164,11 +165,38 @@ class manager_test extends \advanced_testcase {
     }
 
     /**
+     * Test for has_records().
+     *
+     * @covers ::has_records
+     */
+    public function test_has_records(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $data = $this->getDataGenerator()->create_module(manager::MODULE, ['course' => $course]);
+        $manager = manager::create_from_instance($data);
+
+        // Empty database should return false.
+        $this->assertFalse($manager->has_records());
+
+        // Create data record.
+        $datarecords = new \stdClass();
+        $datarecords->userid = '2';
+        $datarecords->dataid = $data->id;
+        $datarecords->id = $DB->insert_record('data_records', $datarecords);
+
+        // Database with records should return true.
+        $this->assertTrue($manager->has_records());
+    }
+
+    /**
      * Test for has_fields().
      *
      * @covers ::has_fields
      */
-    public function test_has_fields() {
+    public function test_has_fields(): void {
         $this->resetAfterTest();
 
         $course = $this->getDataGenerator()->create_course();
@@ -194,7 +222,7 @@ class manager_test extends \advanced_testcase {
      *
      * @covers ::get_available_presets
      */
-    public function test_get_available_presets() {
+    public function test_get_available_presets(): void {
         global $DB;
 
         $this->resetAfterTest();
@@ -295,7 +323,7 @@ class manager_test extends \advanced_testcase {
      *
      * @covers ::get_available_plugin_presets
      */
-    public function test_get_available_plugin_presets() {
+    public function test_get_available_plugin_presets(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
 
@@ -341,7 +369,7 @@ class manager_test extends \advanced_testcase {
      *
      * @covers ::get_available_saved_presets
      */
-    public function test_get_available_saved_presets() {
+    public function test_get_available_saved_presets(): void {
         global $DB;
 
         $this->resetAfterTest();
@@ -411,7 +439,7 @@ class manager_test extends \advanced_testcase {
      * @param bool $plugin if the preset is a plugin or not
      * @param bool $expected the expected result
      */
-    public function test_can_view_preset(string $rolename, bool $ownpreset, ?bool $useridparam, bool $plugin, bool $expected) {
+    public function test_can_view_preset(string $rolename, bool $ownpreset, ?bool $useridparam, bool $plugin, bool $expected): void {
 
         $this->resetAfterTest();
 
@@ -541,6 +569,204 @@ class manager_test extends \advanced_testcase {
                 'useridparam' => true,
                 'plugin' => true,
                 'expected' => true,
+            ],
+        ];
+    }
+
+    /**
+     * Test for can_export_entries().
+     *
+     * @covers ::can_export_entries
+     */
+    public function test_can_export_entries(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        // Create course with activity and enrol users.
+        $course = $this->getDataGenerator()->create_course();
+        $teacherrole = $DB->get_record('role', ['shortname' => 'teacher']);
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'teacher');
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $activity = $this->getDataGenerator()->create_module(manager::MODULE, ['course' => $course]);
+        $cm = get_coursemodule_from_id(manager::MODULE, $activity->cmid, 0, false, MUST_EXIST);
+        $manager = manager::create_from_coursemodule($cm);
+
+        // Add a field.
+        /** @var \mod_data_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_data');
+        $fieldrecord = (object)[
+            'name' => 'myfield',
+            'type' => 'text',
+        ];
+        $field = $generator->create_field($fieldrecord, $activity);
+
+        // Teacher with default capabilities can export entries.
+        $this->setUser($teacher);
+        $result = $manager->can_export_entries();
+        $this->assertEquals(true, $result);
+
+        // Teacher without exportallentries can still export entries.
+        unassign_capability('mod/data:exportallentries', $teacherrole->id);
+        $result = $manager->can_export_entries();
+        $this->assertEquals(true, $result);
+
+        // Teacher without exportallentries and exportentry can't export entries (unless they have created some entries).
+        unassign_capability('mod/data:exportentry', $teacherrole->id);
+        $result = $manager->can_export_entries();
+        $this->assertEquals(false, $result);
+
+        $generator->create_entry(
+            $activity,
+            [$field->field->id => 'Example entry'],
+        );
+        $result = $manager->can_export_entries();
+        $this->assertEquals(true, $result);
+
+        // Student without entries can't export.
+        $this->setUser($student);
+        $result = $manager->can_export_entries();
+        $this->assertEquals(false, $result);
+
+        // However, student who has created any entry, can export.
+        $generator->create_entry(
+            $activity,
+            [$field->field->id => 'Another example entry'],
+        );
+        $this->setUser($student);
+        $result = $manager->can_export_entries();
+        $this->assertEquals(true, $result);
+    }
+
+    /*
+     * Test reset_all_templates.
+     *
+     * @covers ::reset_all_templates
+     */
+    public function test_reset_all_templates(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        // Setup test data.
+        $course = $this->getDataGenerator()->create_course();
+        $instance = $this->getDataGenerator()->create_module(
+            'data',
+            ['course' => $course->id]
+        );
+        $manager = manager::create_from_instance($instance);
+
+        // Create some initial templates.
+        $initialtemplates = new stdClass();
+        foreach (manager::TEMPLATES_LIST as $templatename => $unused) {
+            $initialtemplates->$templatename = "Initial $templatename";
+        }
+        $manager->update_templates($initialtemplates);
+        $instance = $manager->get_instance();
+        $record = $DB->get_record('data', ['id' => $instance->id]);
+        foreach (manager::TEMPLATES_LIST as $templatename => $unused) {
+            $this->assertEquals($initialtemplates->$templatename, $instance->$templatename);
+            $this->assertEquals($initialtemplates->$templatename, $record->$templatename);
+        }
+
+        // Reset all templates.
+        $result = $manager->reset_all_templates();
+        $this->assertTrue($result);
+        $instance = $manager->get_instance();
+        $record = $DB->get_record('data', ['id' => $instance->id]);
+        foreach (manager::TEMPLATES_LIST as $templatename => $unused) {
+            $this->assertEquals('', $instance->$templatename);
+            $this->assertEquals('', $record->$templatename);
+        }
+    }
+
+    /**
+     * Test reset_template.
+     *
+     * @covers ::reset_template
+     * @dataProvider reset_template_provider
+     * @param string $templatetoreset the template to reset
+     * @param string[] $expected the expected templates to be reset
+     */
+    public function test_reset_template(string $templatetoreset, array $expected): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        // Setup test data.
+        $course = $this->getDataGenerator()->create_course();
+        $instance = $this->getDataGenerator()->create_module(
+            'data',
+            ['course' => $course->id]
+        );
+        $manager = manager::create_from_instance($instance);
+
+        // Create some initial templates.
+        $initialtemplates = new stdClass();
+        foreach (manager::TEMPLATES_LIST as $templatename => $unused) {
+            $initialtemplates->$templatename = "Initial $templatename";
+        }
+        $manager->update_templates($initialtemplates);
+        $instance = $manager->get_instance();
+        $record = $DB->get_record('data', ['id' => $instance->id]);
+        foreach (manager::TEMPLATES_LIST as $templatename => $unused) {
+            $this->assertEquals($initialtemplates->$templatename, $instance->$templatename);
+            $this->assertEquals($initialtemplates->$templatename, $record->$templatename);
+        }
+
+        // Reset template.
+        $result = $manager->reset_template($templatetoreset);
+        $this->assertTrue($result);
+        $instance = $manager->get_instance();
+        $record = $DB->get_record('data', ['id' => $instance->id]);
+        foreach (manager::TEMPLATES_LIST as $templatename => $unused) {
+            if (in_array($templatename, $expected)) {
+                $this->assertEquals('', $instance->$templatename);
+                $this->assertEquals('', $record->$templatename);
+            } else {
+                $this->assertEquals($initialtemplates->$templatename, $instance->$templatename);
+                $this->assertEquals($initialtemplates->$templatename, $record->$templatename);
+            }
+        }
+    }
+
+    /**
+     * Data provider for test_reset_templatet.
+     *
+     * @return array
+     */
+    public function reset_template_provider(): array {
+        return [
+            // User presets.
+            'listtemplate' => [
+                'templatename' => 'listtemplate',
+                'expected' => ['listtemplate', 'listtemplateheader', 'listtemplatefooter'],
+            ],
+            'singletemplate' => [
+                'templatename' => 'singletemplate',
+                'expected' => ['singletemplate'],
+            ],
+            'asearchtemplate' => [
+                'templatename' => 'asearchtemplate',
+                'expected' => ['asearchtemplate'],
+            ],
+            'addtemplate' => [
+                'templatename' => 'addtemplate',
+                'expected' => ['addtemplate'],
+            ],
+            'rsstemplate' => [
+                'templatename' => 'rsstemplate',
+                'expected' => ['rsstemplate', 'rsstitletemplate'],
+            ],
+            'csstemplate' => [
+                'templatename' => 'csstemplate',
+                'expected' => ['csstemplate'],
+            ],
+            'jstemplate' => [
+                'templatename' => 'jstemplate',
+                'expected' => ['jstemplate'],
             ],
         ];
     }

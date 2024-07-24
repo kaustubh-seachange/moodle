@@ -16,38 +16,53 @@ Feature: Use the qbank plugin manager page for question history
       | questioncategory | qtype     | name           | questiontext              |
       | Test questions   | truefalse | First question | Answer the first question |
 
-  @javascript
   Scenario: Enable/disable question history column from the base view
     Given I log in as "admin"
     When I navigate to "Plugins > Question bank plugins > Manage question bank plugins" in site administration
     And I should see "Question history"
     And I click on "Disable" "link" in the "Question history" "table_row"
-    And I am on the "Test quiz" "quiz activity" page
-    And I navigate to "Question bank" in current page administration
-    And I click on ".dropdown-toggle" "css_element" in the "First question" "table_row"
-    Then I should not see "History" in the "region-main" "region"
+    And I am on the "Test quiz" "mod_quiz > question bank" page
+    Then the "History" action should not exist for the "First question" question in the question bank
     And I navigate to "Plugins > Question bank plugins > Manage question bank plugins" in site administration
     And I click on "Enable" "link" in the "Question history" "table_row"
-    And I am on the "Test quiz" "quiz activity" page
-    And I navigate to "Question bank" in current page administration
-    And I click on ".dropdown-toggle" "css_element" in the "First question" "table_row"
-    And I should see "History" in the "region-main" "region"
+    And I am on the "Test quiz" "mod_quiz > question bank" page
+    Then the "History" action should exist for the "First question" question in the question bank
 
   Scenario: History page shows only the specified features and questions
-    Given I log in as "admin"
-    And I am on the "Test quiz" "quiz activity" page
-    When I navigate to "Question bank" in current page administration
+    Given I am on the "Test quiz" "mod_quiz > question bank" page logged in as "admin"
     And I choose "History" action for "First question" in the question bank
-    Then I should not see "Select a category"
-    And I should see "No tag filters applied"
     And I should see "Question"
     And I should see "Actions"
     And I should see "Status"
     And I should see "Version"
     And I should see "Created by"
     And I should see "First question"
-    And I click on ".dropdown-toggle" "css_element" in the "First question" "table_row"
-    But I should not see "History"
-    And I click on "#qbank-history-close" "css_element"
-    And I click on ".dropdown-toggle" "css_element" in the "First question" "table_row"
-    And I should see "History" in the "region-main" "region"
+    And the "History" action should not exist for the "First question" question in the question bank
+
+  @javascript
+  Scenario: Viewing history for a question in a non-default category
+    Given the following "question categories" exist:
+      | contextlevel | reference | name             |
+      | Course       | C1        | Test questions 2 |
+    And the following "questions" exist:
+      | questioncategory | qtype     | name            | questiontext               |
+      | Test questions 2 | truefalse | Second question | Answer the second question |
+    And I am on the "Test quiz" "mod_quiz > question bank" page logged in as "admin"
+    And I apply question bank filter "Category" with value "Test questions 2"
+    And I choose "History" action for "Second question" in the question bank
+    Then I should see "Question history"
+    And "Filter 1" "fieldset" should not exist
+    And I should see "Second question"
+    And "Second question" "table_row" should exist
+
+  @javascript
+  Scenario: Delete question from the history using Edit question menu
+    Given I am on the "Test quiz" "mod_quiz > question bank" page logged in as "admin"
+    And I choose "History" action for "First question" in the question bank
+    When I choose "Delete" action for "First question" in the question bank
+    And I press "Delete"
+    And I should not see "First question"
+    Then I should see "All versions of this question have been deleted."
+    And I click on "Continue" "button"
+    And I should see "Question bank"
+    And I should not see "First question"

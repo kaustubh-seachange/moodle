@@ -35,9 +35,11 @@ require_once($CFG->dirroot . '/question/engine/tests/helpers.php');
  * @package    qtype_multichoice
  * @copyright  2010 The Open University
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @covers     \qtype_multichoice_single_question
+ * @covers     \qtype_multichoice_single_base
  */
 class walkthrough_test extends \qbehaviour_walkthrough_test_base {
-    public function test_deferredfeedback_feedback_multichoice_single() {
+    public function test_deferredfeedback_feedback_multichoice_single(): void {
 
         // Create a multichoice, single question.
         $mc = \test_question_maker::make_a_multichoice_single_question();
@@ -92,7 +94,7 @@ class walkthrough_test extends \qbehaviour_walkthrough_test_base {
                 get_string('deletedchoice', 'qtype_multichoice'), $this->currentoutput);
     }
 
-    public function test_deferredfeedback_feedback_multichoice_single_showstandardunstruction_yes() {
+    public function test_deferredfeedback_feedback_multichoice_single_showstandardunstruction_yes(): void {
 
         // Create a multichoice, single question.
         $mc = \test_question_maker::make_a_multichoice_single_question();
@@ -106,7 +108,7 @@ class walkthrough_test extends \qbehaviour_walkthrough_test_base {
         $this->assertStringContainsString($standardinstruction, $this->currentoutput);
     }
 
-    public function test_deferredfeedback_feedback_multichoice_single_showstandardunstruction_no() {
+    public function test_deferredfeedback_feedback_multichoice_single_showstandardunstruction_no(): void {
 
         // Create a multichoice, single question.
         $mc = \test_question_maker::make_a_multichoice_single_question();
@@ -120,7 +122,7 @@ class walkthrough_test extends \qbehaviour_walkthrough_test_base {
         $this->assertStringNotContainsString($standardinstruction, $this->currentoutput);
     }
 
-    public function test_deferredfeedback_feedback_multichoice_multi() {
+    public function test_deferredfeedback_feedback_multichoice_multi(): void {
         // Create a multichoice, multi question.
         $mc = \test_question_maker::make_a_multichoice_multi_question();
         $mc->shuffleanswers = false;
@@ -145,7 +147,7 @@ class walkthrough_test extends \qbehaviour_walkthrough_test_base {
     /**
      * Test for clear choice option.
      */
-    public function test_deferredfeedback_feedback_multichoice_clearchoice() {
+    public function test_deferredfeedback_feedback_multichoice_clearchoice(): void {
 
         // Create a multichoice, single question.
         $mc = \test_question_maker::make_a_multichoice_single_question();
@@ -211,7 +213,72 @@ class walkthrough_test extends \qbehaviour_walkthrough_test_base {
             new \question_pattern_expectation('/class="r1"/'));
     }
 
-    public function test_deferredfeedback_feedback_multichoice_multi_showstandardunstruction_yes() {
+    public function test_each_attempt_builds_on_last_and_regrade(): void {
+
+        // Create a multichoice, single question.
+        $mc = \test_question_maker::make_a_multichoice_single_question();
+        $mc->shuffleanswers = false;
+
+        $rightchoice = 0;
+
+        $this->start_attempt_at_question(clone($mc), 'deferredfeedback', 3);
+
+        // Submit the answer false (correct).
+        $this->process_submission(['answer' => $rightchoice]);
+
+        // Finish the attempt.
+        $this->quba->finish_all_questions();
+
+        // Check the state.
+        $this->check_current_state(question_state::$gradedright);
+        $this->check_current_mark(3);
+        $this->check_current_output(
+            $this->get_contains_mc_radio_expectation($rightchoice, false, true),
+            $this->get_contains_mc_radio_expectation($rightchoice + 1, false, false),
+            $this->get_contains_mc_radio_expectation($rightchoice + 2, false, false));
+
+        // Start a new attempt based on the first one.
+        $firstattemptqa = $this->quba->get_question_attempt($this->slot);
+        $this->quba = \question_engine::make_questions_usage_by_activity('unit_test',
+                \context_system::instance());
+        $this->quba->set_preferred_behaviour('deferredfeedback');
+        $this->slot = $this->quba->add_question(clone($mc), 3);
+        $this->quba->start_question_based_on($this->slot, $firstattemptqa);
+
+        // Verify.
+        $this->check_current_state(question_state::$complete);
+        $this->check_current_mark(null);
+        $this->check_current_output(
+            $this->get_contains_mc_radio_expectation($rightchoice, true, true),
+            $this->get_contains_mc_radio_expectation($rightchoice + 1, true, false),
+            $this->get_contains_mc_radio_expectation($rightchoice + 2, true, false));
+
+        // Finish the attempt without changing the answer.
+        $this->quba->finish_all_questions();
+
+        // Check the state.
+        $this->check_current_state(question_state::$gradedright);
+        $this->check_current_mark(3);
+        $this->check_current_output(
+            $this->get_contains_mc_radio_expectation($rightchoice, false, true),
+            $this->get_contains_mc_radio_expectation($rightchoice + 1, false, false),
+            $this->get_contains_mc_radio_expectation($rightchoice + 2, false, false));
+
+        // Regrade the attempt - code based on question_usage_by_activity::regrade_question.
+        $oldqa = $this->quba->get_question_attempt($this->slot);
+        $newqa = new \question_attempt(clone($mc),
+                $oldqa->get_usage_id(), $this->quba->get_observer());
+        $newqa->set_database_id($oldqa->get_database_id());
+        $newqa->set_slot($oldqa->get_slot());
+        $newqa->set_max_mark(3);
+        $newqa->regrade($oldqa, true);
+
+        // Check the state.
+        $this->assertEquals(question_state::$gradedright, $newqa->get_state());
+        $this->assertEquals(3, $newqa->get_mark());
+    }
+
+    public function test_deferredfeedback_feedback_multichoice_multi_showstandardunstruction_yes(): void {
 
         // Create a multichoice, multi question.
         $mc = \test_question_maker::make_a_multichoice_multi_question();
@@ -225,7 +292,7 @@ class walkthrough_test extends \qbehaviour_walkthrough_test_base {
         $this->assertStringContainsString($standardinstruction, $this->currentoutput);
     }
 
-    public function test_deferredfeedback_feedback_multichoice_multi_showstandardunstruction_no() {
+    public function test_deferredfeedback_feedback_multichoice_multi_showstandardunstruction_no(): void {
 
         // Create a multichoice, multi question.
         $mc = \test_question_maker::make_a_multichoice_multi_question();
@@ -235,8 +302,10 @@ class walkthrough_test extends \qbehaviour_walkthrough_test_base {
         $this->render();
 
         // Check for 'Show standard instruction'.
-        $standardinstruction = get_string('selectmulti', 'qtype_multichoice');
-        $this->assertStringNotContainsString($standardinstruction, $this->currentoutput);
+        $standardinstruction = \html_writer::tag('legend', get_string('answer'), [
+            'class' => 'prompt h6 font-weight-normal sr-only'
+        ]);
+        $this->assertStringContainsString($standardinstruction, $this->currentoutput);
     }
 
 }

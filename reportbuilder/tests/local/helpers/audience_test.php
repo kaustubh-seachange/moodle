@@ -50,10 +50,10 @@ class audience_test extends advanced_testcase {
     public function test_get_base_records(): void {
         $this->resetAfterTest();
 
-        // Report with no audiences.
         /** @var core_reportbuilder_generator $generator */
         $generator = $this->getDataGenerator()->get_plugin_generator('core_reportbuilder');
 
+        // Report with no audiences.
         $report = $generator->create_report([
             'name' => 'My report',
             'source' => users::class,
@@ -65,13 +65,14 @@ class audience_test extends advanced_testcase {
         // Create a couple of manual audience types.
         $user1 = $this->getDataGenerator()->create_user();
         $user2 = $this->getDataGenerator()->create_user();
-        $generator->create_audience([
+        $audience1 = $generator->create_audience([
             'reportid' => $report->get('id'),
             'classname' => manual::class,
             'configdata' => ['users' => [$user1->id, $user2->id]],
         ]);
+
         $user3 = $this->getDataGenerator()->create_user();
-        $generator->create_audience([
+        $audience2 = $generator->create_audience([
             'reportid' => $report->get('id'),
             'classname' => manual::class,
             'configdata' => ['users' => [$user3->id]],
@@ -79,8 +80,17 @@ class audience_test extends advanced_testcase {
 
         $baserecords = audience::get_base_records($report->get('id'));
         $this->assertCount(2, $baserecords);
-        $this->assertInstanceOf(manual::class, $baserecords[0]);
-        $this->assertInstanceOf(manual::class, $baserecords[1]);
+        $this->assertContainsOnlyInstancesOf(manual::class, $baserecords);
+
+        // Set invalid classname of first audience, should be excluded in subsequent request.
+        $audience1->get_persistent()->set('classname', '\invalid')->save();
+
+        $baserecords = audience::get_base_records($report->get('id'));
+        $this->assertCount(1, $baserecords);
+
+        $baserecord = reset($baserecords);
+        $this->assertInstanceOf(manual::class, $baserecord);
+        $this->assertEquals($audience2->get_persistent()->get('id'), $baserecord->get_persistent()->get('id'));
     }
 
     /**
@@ -145,6 +155,15 @@ class audience_test extends advanced_testcase {
         // User2 can access report1 and report2.
         $reports = audience::get_allowed_reports((int) $user2->id);
         $this->assertEqualsCanonicalizing([$report1->get('id'), $report2->get('id')], $reports);
+
+        // Purge cache, to ensure allowed reports are re-calculated.
+        audience::purge_caches();
+
+        // Now delete one of our users, ensure they no longer have any allowed reports.
+        delete_user($user2);
+
+        $reports = audience::get_allowed_reports((int) $user2->id);
+        $this->assertEmpty($reports);
     }
 
     /**
@@ -210,5 +229,137 @@ class audience_test extends advanced_testcase {
         // User3 can not access any report.
         $reports = audience::user_reports_list((int) $user3->id);
         $this->assertEmpty($reports);
+    }
+
+    /**
+     * Test retrieving full list of reports that user can access
+     */
+    public function test_user_reports_list_access_sql(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $userone = $this->getDataGenerator()->create_user();
+        $usertwo = $this->getDataGenerator()->create_user();
+        $userthree = $this->getDataGenerator()->create_user();
+        $userfour = $this->getDataGenerator()->create_user();
+
+        /** @var core_reportbuilder_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('core_reportbuilder');
+
+        // Manager role gives users one and two capability to create own reports.
+        $managerrole = $DB->get_field('role', 'id', ['shortname' => 'manager']);
+        role_assign($managerrole, $userone->id, context_system::instance());
+        role_assign($managerrole, $usertwo->id, context_system::instance());
+
+        // Admin creates a report, no audience.
+        $this->setAdminUser();
+        $useradminreport = $generator->create_report(['name' => 'Admin report', 'source' => users::class]);
+
+        // User one creates a report, adds users two and three to audience.
+        $this->setUser($userone);
+        $useronereport = $generator->create_report(['name' => 'User one report', 'source' => users::class]);
+        $generator->create_audience(['reportid' => $useronereport->get('id'), 'classname' => manual::class, 'configdata' => [
+            'users' => [$usertwo->id, $userthree->id],
+        ]]);
+
+        // User two creates a report, no audience.
+        $this->setUser($usertwo);
+        $usertworeport = $generator->create_report(['name' => 'User two report', 'source' => users::class]);
+
+        // User one sees only the report they created.
+        [$where, $params] = audience::user_reports_list_access_sql('r', (int) $userone->id);
+        $reports = $DB->get_fieldset_sql("SELECT r.id FROM {reportbuilder_report} r WHERE {$where}", $params);
+        $this->assertEquals([$useronereport->get('id')], $reports);
+
+        // User two see the report they created and the one they are in the audience of.
+        [$where, $params] = audience::user_reports_list_access_sql('r', (int) $usertwo->id);
+        $reports = $DB->get_fieldset_sql("SELECT r.id FROM {reportbuilder_report} r WHERE {$where}", $params);
+        $this->assertEqualsCanonicalizing([$useronereport->get('id'), $usertworeport->get('id')], $reports);
+
+        // User three sees the report they are in the audience of.
+        [$where, $params] = audience::user_reports_list_access_sql('r', (int) $userthree->id);
+        $reports = $DB->get_fieldset_sql("SELECT r.id FROM {reportbuilder_report} r WHERE {$where}", $params);
+        $this->assertEquals([$useronereport->get('id')], $reports);
+
+        // User four sees no reports.
+        [$where, $params] = audience::user_reports_list_access_sql('r', (int) $userfour->id);
+        $reports = $DB->get_fieldset_sql("SELECT r.id FROM {reportbuilder_report} r WHERE {$where}", $params);
+        $this->assertEmpty($reports);
+    }
+
+    /**
+     * Data provider for {@see test_user_reports_list_access_sql_with_capability}
+     *
+     * @return array[]
+     */
+    public static function user_reports_list_access_sql_with_capability_provider(): array {
+        return [
+            ['moodle/reportbuilder:editall'],
+            ['moodle/reportbuilder:viewall'],
+        ];
+    }
+
+    /**
+     * Test retrieving list of reports that user can access observes capability to view all reports
+     *
+     * @param string $capability
+     *
+     * @dataProvider user_reports_list_access_sql_with_capability_provider
+     */
+    public function test_user_reports_list_access_sql_with_capability(string $capability): void {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        // Admin creates a report, no audience.
+        $this->setAdminUser();
+
+        /** @var core_reportbuilder_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('core_reportbuilder');
+        $report = $generator->create_report(['name' => 'Admin report', 'source' => users::class]);
+
+        // Switch to new user, assign capability.
+        $user = $this->getDataGenerator()->create_user();
+        $this->setUser($user);
+
+        $userrole = $DB->get_field('role', 'id', ['shortname' => 'user']);
+        assign_capability($capability, CAP_ALLOW, $userrole, context_system::instance());
+
+        [$where, $params] = audience::user_reports_list_access_sql('r');
+        $reports = $DB->get_fieldset_sql("SELECT r.id FROM {reportbuilder_report} r WHERE {$where}", $params);
+        $this->assertEquals([$report->get('id')], $reports);
+    }
+
+    /**
+     * Test getting list of audiences in use within schedules for a report
+     */
+    public function test_get_audiences_for_report_schedules(): void {
+        $this->resetAfterTest();
+
+        /** @var core_reportbuilder_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('core_reportbuilder');
+        $report = $generator->create_report(['name' => 'My report', 'source' => users::class]);
+
+        $audienceone = $generator->create_audience(['reportid' => $report->get('id'), 'configdata' => []]);
+        $audiencetwo = $generator->create_audience(['reportid' => $report->get('id'), 'configdata' => []]);
+        $audiencethree = $generator->create_audience(['reportid' => $report->get('id'), 'configdata' => []]);
+
+        // The first schedule contains audience one and two.
+        $generator->create_schedule(['reportid' => $report->get('id'), 'name' => 'Schedule one', 'audiences' =>
+            json_encode([$audienceone->get_persistent()->get('id'), $audiencetwo->get_persistent()->get('id')])
+        ]);
+
+        // Second schedule contains only audience one.
+        $generator->create_schedule(['reportid' => $report->get('id'), 'name' => 'Schedule two', 'audiences' =>
+            json_encode([$audienceone->get_persistent()->get('id')])
+        ]);
+
+        // The first two audiences should be returned, the third omitted.
+        $audiences = audience::get_audiences_for_report_schedules($report->get('id'));
+        $this->assertEqualsCanonicalizing([
+            $audienceone->get_persistent()->get('id'),
+            $audiencetwo->get_persistent()->get('id'),
+        ], $audiences);
     }
 }

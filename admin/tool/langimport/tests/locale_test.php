@@ -14,14 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-/**
- * Tests for \tool_langimport\locale class.
- *
- * @package    tool_langimport
- * @copyright  2018 Université Rennes 2 {@link https://www.univ-rennes2.fr}
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-
 namespace tool_langimport;
 
 /**
@@ -29,44 +21,66 @@ namespace tool_langimport;
  *
  * @package    tool_langimport
  * @category   test
+ * @covers \tool_langimport\locale
  * @copyright  2018 Université Rennes 2 {@link https://www.univ-rennes2.fr}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class locale_test extends \advanced_testcase {
+final class locale_test extends \advanced_testcase {
+    /** @var string Locale */
+    protected string $locale;
+
+    #[\Override]
+    public function setUp(): void {
+        parent::setUp();
+        $this->locale = \core\locale::get_locale();
+    }
+
+    #[\Override]
+    public function tearDown(): void {
+        parent::tearDown();
+        \core\locale::set_locale(LC_ALL, $this->locale);
+    }
+
     /**
      * Test that \tool_langimport\locale::check_locale_availability() works as expected.
-     *
-     * @return void
      */
-    public function test_check_locale_availability() {
-        // Create a mock of set_locale() method to simulate :
-        // - first setlocale() call which backup current locale
-        // - second setlocale() call which try to set new 'es' locale
-        // - third setlocale() call which restore locale.
-        $mock = $this->getMockBuilder(\tool_langimport\locale::class)
-            ->onlyMethods(['set_locale'])
+    public function test_check_locale_availability(): void {
+        // Create a mock of set_locale() method to simulate:
+        // - get_locale() call which backup current locale
+        // - first set_locale() call which try to set new 'es' locale
+        // - second set_locale() call which restore locale.
+        $mock = $this->getMockBuilder(locale::class)
+            ->onlyMethods([
+                'get_locale',
+                'set_locale',
+            ])
             ->getMock();
-        $mock->method('set_locale')->will($this->onConsecutiveCalls('en', 'es', 'en'));
+        $mock->method('get_locale')->will($this->onConsecutiveCalls('en'));
+        $mock->method('set_locale')->will($this->onConsecutiveCalls('es', 'en'));
 
         // Test what happen when locale is available on system.
         $result = $mock->check_locale_availability('en');
         $this->assertTrue($result);
 
-        // Create a mock of set_locale() method to simulate :
-        // - first setlocale() call which backup current locale
-        // - second setlocale() call which fail to set new locale
-        // - third setlocale() call which restore locale.
-        $mock = $this->getMockBuilder(\tool_langimport\locale::class)
-            ->onlyMethods(['set_locale'])
+        // Create a mock of set_locale() method to simulate:
+        // - get_locale() call which backup current locale
+        // - first set_locale() call which fail to set new locale
+        // - second set_locale() call which restore locale.
+        $mock = $this->getMockBuilder(locale::class)
+            ->onlyMethods([
+                'get_locale',
+                'set_locale',
+            ])
             ->getMock();
-        $mock->method('set_locale')->will($this->onConsecutiveCalls('en', false, 'en'));
+        $mock->method('get_locale')->will($this->onConsecutiveCalls('en'));
+        $mock->method('set_locale')->will($this->onConsecutiveCalls(false, 'en'));
 
         // Test what happen when locale is not available on system.
         $result = $mock->check_locale_availability('en');
         $this->assertFalse($result);
 
         // Test an invalid parameter.
-        $locale = new \tool_langimport\locale();
+        $locale = new locale();
         $this->expectException(\coding_exception::class);
         $locale->check_locale_availability('');
     }

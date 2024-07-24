@@ -75,13 +75,17 @@ class core_text {
     }
 
     /**
-     * Reset internal textlib caches.
-     * @static
      * @deprecated since Moodle 4.0. See MDL-53544.
-     * @todo To be removed in Moodle 4.4 - MDL-71748
      */
-    public static function reset_caches() {
-        debugging("reset_caches() is deprecated. Typo3 has been removed and caches aren't used anymore.", DEBUG_DEVELOPER);
+    #[\core\attribute\deprecated(
+        'core_text::reset_caches',
+        since: '4.0',
+        reason:'Typo3 has been removed and caches aren\'t used anymore.',
+        mdl: 'MDL-53544',
+        final: true,
+    )]
+    public static function reset_caches(): void {
+        \core\deprecation::emit_deprecation_if_present([self::class, __FUNCTION__]);
     }
 
     /**
@@ -94,7 +98,7 @@ class core_text {
      * @return string normalised lowercase charset name
      */
     public static function parse_charset($charset) {
-        $charset = strtolower($charset);
+        $charset = strtolower($charset ?? '');
 
         if ($charset === 'utf8' or $charset === 'utf-8') {
             return 'utf-8';
@@ -181,9 +185,9 @@ class core_text {
 
         // Check whether the charset is supported by mbstring. CP1250 is not supported. Fall back to iconv.
         if (self::is_charset_supported($charset)) {
-            $result = mb_substr($text, $start, $len, $charset);
+            $result = mb_substr($text ?? '', $start, $len, $charset);
         } else {
-            $result = iconv_substr($text, $start, $len, $charset);
+            $result = (string)iconv_substr($text ?? '', $start, $len, $charset);
         }
 
         return $result;
@@ -199,7 +203,7 @@ class core_text {
      * @since Moodle 3.1
      */
     public static function str_max_bytes($string, $bytes) {
-        return mb_strcut($string, 0, $bytes, 'UTF-8');
+        return mb_strcut($string ?? '', 0, $bytes, 'UTF-8');
     }
 
     /**
@@ -213,6 +217,10 @@ class core_text {
      * @since Moodle 2.4.6, 2.5.2, 2.6
      */
     public static function strrchr($haystack, $needle, $part = false) {
+        if (is_null($haystack)) {
+            // Compatibility with behavior in PHP before version 8.1.
+            return false;
+        }
         return mb_strrchr($haystack, $needle, $part, 'UTF-8');
     }
 
@@ -227,10 +235,10 @@ class core_text {
         $charset = self::parse_charset($charset);
 
         if (self::is_charset_supported($charset)) {
-            return mb_strlen($text, $charset);
+            return mb_strlen($text ?? '', $charset);
         }
 
-        return iconv_strlen($text, $charset);
+        return iconv_strlen($text ?? '', $charset);
     }
 
     /**
@@ -245,7 +253,7 @@ class core_text {
 
         // Confirm mbstring can handle the charset.
         if (self::is_charset_supported($charset)) {
-            return mb_strtolower($text, $charset);
+            return mb_strtolower($text ?? '', $charset);
         }
 
         // The mbstring extension cannot handle the charset. Convert to UTF-8.
@@ -267,7 +275,7 @@ class core_text {
 
         // Confirm mbstring can handle the charset.
         if (self::is_charset_supported($charset)) {
-            return mb_strtoupper($text, $charset);
+            return mb_strtoupper($text ?? '', $charset);
         }
 
         // The mbstring extension cannot handle the charset. Convert to UTF-8.
@@ -287,7 +295,7 @@ class core_text {
      * @return int the numeric position of the first occurrence of needle in haystack.
      */
     public static function strpos($haystack, $needle, $offset=0) {
-        return mb_strpos($haystack, $needle, $offset, 'UTF-8');
+        return mb_strpos($haystack ?? '', $needle, $offset, 'UTF-8');
     }
 
     /**
@@ -299,7 +307,11 @@ class core_text {
      * @return int the numeric position of the last occurrence of needle in haystack
      */
     public static function strrpos($haystack, $needle) {
-        return mb_strrpos($haystack, $needle, null, 'UTF-8');
+        if (is_null($haystack)) {
+            // Compatibility with behavior in PHP before version 8.1.
+            return false;
+        }
+        return mb_strrpos($haystack, $needle, 0, 'UTF-8');
     }
 
     /**
@@ -310,7 +322,7 @@ class core_text {
      * @return string the reversed multi byte string
      */
     public static function strrev($str) {
-        preg_match_all('/./us', $str, $ar);
+        preg_match_all('/./us', $str ?? '', $ar);
         return join('', array_reverse($ar[0]));
     }
 
@@ -444,7 +456,7 @@ class core_text {
         if (!isset($trans_tbl)) {
             if (version_compare(phpversion(), '5.3.4') < 0) {
                 $trans_tbl = array();
-                foreach (get_html_translation_table(HTML_ENTITIES) as $val=>$key) {
+                foreach (get_html_translation_table(HTML_ENTITIES, ENT_COMPAT) as $val=>$key) {
                     $trans_tbl[$key] = self::convert($val, 'ISO-8859-1', 'utf-8');
                 }
 
@@ -513,7 +525,7 @@ class core_text {
             $str = self::entities_to_utf8($str, true);
         }
 
-        $result = mb_strtolower(mb_encode_numericentity($str, [0xa0, 0xffff, 0, 0xffff], 'UTF-8', true));
+        $result = mb_strtolower(mb_encode_numericentity($str ?? '', [0xa0, 0xffff, 0, 0xffff], 'UTF-8', true));
 
         // We cannot use the decimal equivalent of the above call due to the unit test and our allowance for
         // entities to be entered within the provided $str. Refer to the correspond unit test for examples.
@@ -536,6 +548,9 @@ class core_text {
      * @return string
      */
     public static function trim_utf8_bom($str) {
+        if (is_null($str)) {
+            return null;
+        }
         $bom = self::UTF8_BOM;
         if (strpos($str, $bom) === 0) {
             return substr($str, strlen($bom));
@@ -563,12 +578,12 @@ class core_text {
             // characters of each code planes 0-16 inclusive...
             for ($plane = 0; $plane <= 16; $plane++) {
                 $base = ($plane === 0 ? '' : dechex($plane));
-                self::$noncharacters[] = html_entity_decode('&#x' . $base . 'fffe;');
-                self::$noncharacters[] = html_entity_decode('&#x' . $base . 'ffff;');
+                self::$noncharacters[] = html_entity_decode('&#x' . $base . 'fffe;', ENT_COMPAT);
+                self::$noncharacters[] = html_entity_decode('&#x' . $base . 'ffff;', ENT_COMPAT);
             }
             // ...And the character range U+FDD0 to U+FDEF.
             for ($char = 0xfdd0; $char <= 0xfdef; $char++) {
-                self::$noncharacters[] = html_entity_decode('&#x' . dechex($char) . ';');
+                self::$noncharacters[] = html_entity_decode('&#x' . dechex($char) . ';', ENT_COMPAT);
             }
         }
 

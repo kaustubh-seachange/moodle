@@ -30,8 +30,8 @@ use JsonSerializable;
  *
  * Each format plugin could extend this class to provide new updates to the frontend
  * mutation module.
- * Extended classes should be locate in "format_XXX\course" namespace and
- * extends core_course\stateupdates.
+ * Extended classes should be located in "format_XXX\course" namespace and
+ * extends {@see \core_courseformat\stateupdates}.
  *
  * @package    core_course
  * @copyright  2021 Ferran Recio <ferran@moodle.com>
@@ -123,6 +123,12 @@ class stateupdates implements JsonSerializable {
         $currentstate = new $sectionclass($this->format, $section);
 
         $this->add_update('section', $action, $currentstate->export_for_template($this->output));
+
+        // If the section is delegated to a component, give the component oportunity to add updates.
+        $delegated = $section->get_component_instance();
+        if ($delegated) {
+            $delegated->put_section_state_extra_updates($section, $this);
+        }
     }
 
     /**

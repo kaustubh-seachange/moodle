@@ -158,6 +158,36 @@ class instance_test extends advanced_testcase {
     }
 
     /**
+     * Test getting Meeting ID from log as Log field (meetingid) is the full meeting id (with courseid, and bigbluebuttonid).
+     *
+     * @covers ::get_from_meetingid
+     */
+    public function test_get_from_meetingid_from_log(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        [
+            'record' => $record,
+            'course' => $course,
+            'cm' => $cm,
+        ] = $this->get_test_instance();
+        $instance = instance::get_from_cmid($cm->id);
+        $instance->set_group_id(1);
+        logger::log_meeting_joined_event($instance, 1);
+
+        // Get the meeting ID from the logged "join" event.
+        $meetingid = $DB->get_field('bigbluebuttonbn_logs', 'meetingid', [
+            'courseid' => $course->id,
+            'bigbluebuttonbnid' => $instance->get_instance_id(),
+            'log' => 'Join',
+        ], MUST_EXIST);
+
+        $retrievedinstance = instance::get_from_meetingid($meetingid);
+        $this->assertEquals($cm->instance, $retrievedinstance->get_instance_id());
+        $this->assertEquals($cm->id, $retrievedinstance->get_cm_id());
+    }
+
+    /**
      * Ensure that invalid meetingids throw an appropriate exception.
      *
      * @dataProvider invalid_meetingid_provider
@@ -461,6 +491,47 @@ class instance_test extends advanced_testcase {
     }
 
     /**
+     * Ensure that the get_current_user_role function works as expected.
+     *
+     * @dataProvider get_current_user_role_provider
+     * @param bool $isadmin
+     * @param bool $ismoderator
+     * @param bool $expectedmodrole
+     * @covers ::get_current_user_role
+     */
+    public function test_get_current_user_role(bool $isadmin, bool $ismoderator, bool $expectedmodrole): void {
+        $stub = $this->getMockBuilder(instance::class)
+            ->setMethods([
+                'is_admin',
+                'is_moderator',
+            ])
+            ->disableOriginalConstructor()
+            ->getMock();
+
+        $stub->method('is_admin')->willReturn($isadmin);
+        $stub->method('is_moderator')->willReturn($ismoderator);
+
+        if ($expectedmodrole) {
+            $this->assertEquals('MODERATOR', $stub->get_current_user_role());
+        } else {
+            $this->assertEquals('VIEWER', $stub->get_current_user_role());
+        }
+    }
+
+    /**
+     * Data provider for the get_current_user_role function.
+     *
+     * @return array
+     */
+    public function get_current_user_role_provider(): array {
+        return [
+            'Admin is a moderator' => [true, false, true],
+            'Moderator is a moderator' => [false, true, true],
+            'Others are a viewer' => [false, false, false],
+        ];
+    }
+
+    /**
      * Tests for the allow_recording_start_stop function.
      *
      * @dataProvider allow_recording_start_stop_provider
@@ -501,4 +572,82 @@ class instance_test extends advanced_testcase {
         ];
     }
 
+
+    /**
+     * Test get user id (guest or current user)
+     * @covers \mod_bigbluebuttonbn\instance::get_user_id
+     */
+    public function test_get_user_id(): void {
+        $this->resetAfterTest();
+        $this->setUser(null);
+        ['record' => $record ] = $this->get_test_instance();
+        $instance = instance::get_from_instanceid($record->id);
+        $this->assertEquals(0, $instance->get_user_id());
+        $user = $this->getDataGenerator()->create_user();
+        $this->setUser($user);
+        $this->assertEquals($user->id, $instance->get_user_id());
+    }
+
+    /**
+     * Test guest access URL
+     *
+     * @covers ::get_guest_access_url
+     */
+    public function test_get_guest_access_url(): void {
+        global $CFG;
+        $this->resetAfterTest();
+        ['record' => $record ] = $this->get_test_instance(['guestallowed' => true]);
+        $CFG->bigbluebuttonbn['guestaccess_enabled'] = 1;
+        $instance = instance::get_from_instanceid($record->id);
+        $this->assertNotEmpty($instance->get_guest_access_url());
+    }
+
+    /**
+     * Test guest allowed flag
+     *
+     * @covers ::is_guest_allowed
+     */
+    public function test_is_guest_allowed(): void {
+        global $CFG;
+        $this->resetAfterTest();
+        ['record' => $record ] = $this->get_test_instance(['guestallowed' => true]);
+        $CFG->bigbluebuttonbn['guestaccess_enabled'] = 1;
+        $instance = instance::get_from_instanceid($record->id);
+        $this->assertTrue($instance->is_guest_allowed());
+        $CFG->bigbluebuttonbn['guestaccess_enabled'] = 0;
+        $this->assertFalse($instance->is_guest_allowed());
+    }
+
+    /**
+     * Test private method get_instance_info_retriever
+     *
+     * @covers ::get_instance_info_retriever
+     */
+    public function test_get_instance_info_retriever(): void {
+        $this->resetAfterTest();
+        [
+            'record' => $record,
+            'cm' => $cm,
+        ] = $this->get_test_instance();
+        $instance = instance::get_from_instanceid($record->id);
+        $instancereflection = new \ReflectionClass($instance);
+        $getinstanceinforetriever = $instancereflection->getMethod('get_instance_info_retriever');
+        $this->assertInstanceOf('\mod_bigbluebuttonbn\instance',
+            $getinstanceinforetriever->invoke($instance, $record->id, instance::IDTYPE_INSTANCEID));
+        $this->assertEquals($cm->id, $instance->get_cm_id());
+    }
+
+    /**
+     * Test guest access password
+     *
+     * @covers ::get_guest_access_password
+     */
+    public function get_guest_access_password() {
+        global $CFG;
+        $this->resetAfterTest();
+        ['record' => $record ] = $this->get_test_instance(['guestallowed' => true]);
+        $CFG->bigbluebuttonbn['guestaccess_enabled'] = 1;
+        $instance = instance::get_from_instanceid($record->id);
+        $this->assertNotEmpty($instance->get_guest_access_password());
+    }
 }

@@ -14,16 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-/**
- * Completion tests.
- *
- * @package    core_completion
- * @category   phpunit
- * @copyright  2008 Sam Marshall
- * @copyright  2013 Frédéric Massart
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-
 defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
@@ -33,7 +23,7 @@ require_once($CFG->libdir.'/completionlib.php');
  * Completion tests.
  *
  * @package    core_completion
- * @category   phpunit
+ * @category   test
  * @copyright  2008 Sam Marshall
  * @copyright  2013 Frédéric Massart
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -108,7 +98,7 @@ class completionlib_test extends advanced_testcase {
      * @covers ::is_enabled_for_site
      * @covers ::is_enabled
      */
-    public function test_is_enabled() {
+    public function test_is_enabled(): void {
         global $CFG;
         $this->mock_setup();
 
@@ -146,7 +136,7 @@ class completionlib_test extends advanced_testcase {
     /**
      * @covers ::update_state
      */
-    public function test_update_state() {
+    public function test_update_state(): void {
         $this->mock_setup();
 
         $mockbuilder = $this->getMockBuilder('completion_info');
@@ -371,7 +361,7 @@ class completionlib_test extends advanced_testcase {
      * @param int $expectedstate
      * @covers ::internal_get_state
      */
-    public function test_internal_get_state(int $completionview, int $completionusegrade, string $unsetfield, int $expectedstate) {
+    public function test_internal_get_state(int $completionview, int $completionusegrade, string $unsetfield, int $expectedstate): void {
         $this->setup_data();
 
         /** @var \mod_assign_generator $assigngenerator */
@@ -401,9 +391,8 @@ class completionlib_test extends advanced_testcase {
      * Provider for the test_internal_get_state_with_grade_criteria.
      *
      * @return array
-     * @covers ::internal_get_state
      */
-    public function test_internal_get_state_with_grade_criteria_provider() {
+    public function internal_get_state_with_grade_criteria_provider() {
         return [
             "Passing grade enabled and achieve. State should be COMPLETION_COMPLETE_PASS" => [
                 [
@@ -451,13 +440,13 @@ class completionlib_test extends advanced_testcase {
     /**
      * Tests that the right completion state is being set based on the grade criteria.
      *
-     * @dataProvider test_internal_get_state_with_grade_criteria_provider
+     * @dataProvider internal_get_state_with_grade_criteria_provider
      * @param array $completioncriteria The completion criteria to use
      * @param int|null $studentgrade Grade to assign to student
      * @param int $expectedstate Expected completion state
      * @covers ::internal_get_state
      */
-    public function test_internal_get_state_with_grade_criteria(array $completioncriteria, ?int $studentgrade, int $expectedstate) {
+    public function test_internal_get_state_with_grade_criteria(array $completioncriteria, ?int $studentgrade, int $expectedstate): void {
         $this->setup_data();
 
         /** @var \mod_assign_generator $assigngenerator */
@@ -499,7 +488,7 @@ class completionlib_test extends advanced_testcase {
      *
      * @covers ::internal_get_state
      */
-    public function test_internal_get_state_with_different_user() {
+    public function test_internal_get_state_with_different_user(): void {
         $this->setup_data();
 
         /** @var \mod_assign_generator $assigngenerator */
@@ -543,7 +532,7 @@ class completionlib_test extends advanced_testcase {
      *
      * @covers ::internal_get_state
      */
-    public function test_internal_get_state_with_custom_completion() {
+    public function test_internal_get_state_with_custom_completion(): void {
         $this->setup_data();
 
         $choicerecord = [
@@ -571,7 +560,7 @@ class completionlib_test extends advanced_testcase {
     /**
      * @covers ::set_module_viewed
      */
-    public function test_set_module_viewed() {
+    public function test_set_module_viewed(): void {
         $this->mock_setup();
 
         $mockbuilder = $this->getMockBuilder('completion_info');
@@ -629,7 +618,7 @@ class completionlib_test extends advanced_testcase {
     /**
      * @covers ::count_user_data
      */
-    public function test_count_user_data() {
+    public function test_count_user_data(): void {
         global $DB;
         $this->mock_setup();
 
@@ -648,7 +637,7 @@ class completionlib_test extends advanced_testcase {
     /**
      * @covers ::delete_all_state
      */
-    public function test_delete_all_state() {
+    public function test_delete_all_state(): void {
         global $DB;
         $this->mock_setup();
 
@@ -668,7 +657,7 @@ class completionlib_test extends advanced_testcase {
     /**
      * @covers ::reset_all_state
      */
-    public function test_reset_all_state() {
+    public function test_reset_all_state(): void {
         global $DB;
         $this->mock_setup();
 
@@ -745,7 +734,7 @@ class completionlib_test extends advanced_testcase {
      * @param int $completion The completion state expected.
      * @covers ::get_data
      */
-    public function test_get_data(bool $wholecourse, bool $sameuser, bool $hasrecord, int $completion) {
+    public function test_get_data(bool $wholecourse, bool $sameuser, bool $hasrecord, int $completion): void {
         global $DB;
 
         $this->setup_data();
@@ -767,11 +756,16 @@ class completionlib_test extends advanced_testcase {
                 'coursemoduleid' => $cm->id,
                 'userid' => $user->id,
                 'completionstate' => $completion,
-                'viewed' => 0,
                 'overrideby' => null,
                 'timemodified' => 0,
             ];
+            $cmcompletionviewrecord = (object)[
+                'coursemoduleid' => $cm->id,
+                'userid' => $user->id,
+                'timecreated' => 0,
+            ];
             $DB->insert_record('course_modules_completion', $cmcompletionrecord);
+            $DB->insert_record('course_modules_viewed', $cmcompletionviewrecord);
         }
 
         // Whether we expect for the returned completion data to be stored in the cache.
@@ -832,11 +826,16 @@ class completionlib_test extends advanced_testcase {
             'coursemoduleid' => $cm->id,
             'userid' => $this->user->id,
             'completionstate' => COMPLETION_NOT_VIEWED,
-            'viewed' => 0,
             'overrideby' => null,
             'timemodified' => 0,
         ];
+        $cmcompletionviewrecord = (object)[
+            'coursemoduleid' => $cm->id,
+            'userid' => $this->user->id,
+            'timecreated' => 0,
+        ];
         $DB->insert_record('course_modules_completion', $cmcompletionrecord);
+        $DB->insert_record('course_modules_viewed', $cmcompletionviewrecord);
 
         // Mock other completion data.
         $completioninfo = new completion_info($this->course);
@@ -856,7 +855,6 @@ class completionlib_test extends advanced_testcase {
 
             $this->assertEquals($testcm->id, $result->coursemoduleid);
             $this->assertEquals($this->user->id, $result->userid);
-            $this->assertEquals(0, $result->viewed);
 
             $results[$testcm->id] = $result;
         }
@@ -873,11 +871,70 @@ class completionlib_test extends advanced_testcase {
     }
 
     /**
+     * Tests for get_completion_data().
+     *
+     * @covers ::get_completion_data
+     */
+    public function test_get_completion_data(): void {
+        $this->setAdminUser();
+        $this->setup_data();
+        $choicegenerator = $this->getDataGenerator()->get_plugin_generator('mod_choice');
+        $choice = $choicegenerator->create_instance([
+            'course' => $this->course->id,
+            'completion' => COMPLETION_TRACKING_AUTOMATIC,
+            'completionview' => true,
+            'completionsubmit' => true,
+        ]);
+        $cm = get_coursemodule_from_instance('choice', $choice->id);
+
+        // Mock other completion data.
+        $completioninfo = new completion_info($this->course);
+        // Default data to return when no completion data is found.
+        $defaultdata = [
+            'id' => 0,
+            'coursemoduleid' => $cm->id,
+            'userid' => $this->user->id,
+            'completionstate' => 0,
+            'viewed' => 0,
+            'overrideby' => null,
+            'timemodified' => 0,
+        ];
+
+        $completiondatabeforeview = $completioninfo->get_completion_data($cm->id, $this->user->id, $defaultdata);
+        $this->assertTrue(array_key_exists('viewed', $completiondatabeforeview));
+        $this->assertTrue(array_key_exists('coursemoduleid', $completiondatabeforeview));
+        $this->assertEquals(0, $completiondatabeforeview['viewed']);
+        $this->assertEquals($cm->id, $completiondatabeforeview['coursemoduleid']);
+
+        // Mark as completed before viewing it.
+        $completioninfo->update_state($cm, COMPLETION_COMPLETE, $this->user->id, true);
+        $completiondatabeforeview = $completioninfo->get_completion_data($cm->id, $this->user->id, $defaultdata);
+        $this->assertEquals(0, $completiondatabeforeview['viewed']);
+
+        // Set viewed.
+        $completioninfo->set_module_viewed($cm, $this->user->id);
+
+        $completiondata = $completioninfo->get_completion_data($cm->id, $this->user->id, $defaultdata);
+        $this->assertTrue(array_key_exists('viewed', $completiondata));
+        $this->assertTrue(array_key_exists('coursemoduleid', $completiondata));
+        $this->assertEquals(1, $completiondata['viewed']);
+        $this->assertEquals($cm->id, $completiondatabeforeview['coursemoduleid']);
+
+        $completioninfo->reset_all_state($cm);
+
+        $completiondataafterreset = $completioninfo->get_completion_data($cm->id, $this->user->id, $defaultdata);
+        $this->assertTrue(array_key_exists('viewed', $completiondataafterreset));
+        $this->assertTrue(array_key_exists('coursemoduleid', $completiondataafterreset));
+        $this->assertEquals(1, $completiondataafterreset['viewed']);
+        $this->assertEquals($cm->id, $completiondatabeforeview['coursemoduleid']);
+    }
+
+    /**
      * Tests for completion_info::get_other_cm_completion_data().
      *
      * @covers ::get_other_cm_completion_data
      */
-    public function test_get_other_cm_completion_data() {
+    public function test_get_other_cm_completion_data(): void {
         global $DB;
 
         $this->setup_data();
@@ -915,7 +972,6 @@ class completionlib_test extends advanced_testcase {
         $completioninfo = new completion_info($this->course);
 
         $method = new ReflectionMethod("completion_info", "get_other_cm_completion_data");
-        $method->setAccessible(true);
 
         // Check that fetching data for a module with custom completion provides its info.
         $choicecompletiondata = $method->invoke($completioninfo, $cmchoice, $user->id);
@@ -952,7 +1008,7 @@ class completionlib_test extends advanced_testcase {
     /**
      * @covers ::internal_set_data
      */
-    public function test_internal_set_data() {
+    public function test_internal_set_data(): void {
         global $DB;
         $this->setup_data();
 
@@ -1062,7 +1118,7 @@ class completionlib_test extends advanced_testcase {
     /**
      * @covers ::get_progress_all
      */
-    public function test_get_progress_all_few() {
+    public function test_get_progress_all_few(): void {
         global $DB;
         $this->mock_setup();
 
@@ -1099,7 +1155,7 @@ class completionlib_test extends advanced_testcase {
     /**
      * @covers ::get_progress_all
      */
-    public function test_get_progress_all_lots() {
+    public function test_get_progress_all_lots(): void {
         global $DB;
         $this->mock_setup();
 
@@ -1157,7 +1213,7 @@ class completionlib_test extends advanced_testcase {
     /**
      * @covers ::inform_grade_changed
      */
-    public function test_inform_grade_changed() {
+    public function test_inform_grade_changed(): void {
         $this->mock_setup();
 
         $mockbuilder = $this->getMockBuilder('completion_info');
@@ -1228,7 +1284,7 @@ class completionlib_test extends advanced_testcase {
     /**
      * @covers ::internal_get_grade_state
      */
-    public function test_internal_get_grade_state() {
+    public function test_internal_get_grade_state(): void {
         $this->mock_setup();
 
         $item = new stdClass;
@@ -1268,12 +1324,36 @@ class completionlib_test extends advanced_testcase {
         $this->assertEquals(
             COMPLETION_COMPLETE,
             completion_info::internal_get_grade_state($item, $grade));
+
+        // Item is hidden, but returnpassfail is true and the grade is passing.
+        $item->hidden = 1;
+        $item->gradepass = 4;
+        $grade->finalgrade = 5.0;
+        $this->assertEquals(
+            COMPLETION_COMPLETE_PASS,
+            completion_info::internal_get_grade_state($item, $grade, true));
+
+        // Item is hidden, but returnpassfail is true and the grade is failing.
+        $item->hidden = 1;
+        $item->gradepass = 4;
+        $grade->finalgrade = 3.0;
+        $this->assertEquals(
+            COMPLETION_COMPLETE_FAIL_HIDDEN,
+            completion_info::internal_get_grade_state($item, $grade, true));
+
+        // Item is not hidden, but returnpassfail is true and the grade is failing.
+        $item->hidden = 0;
+        $item->gradepass = 4;
+        $grade->finalgrade = 3.0;
+        $this->assertEquals(
+            COMPLETION_COMPLETE_FAIL,
+            completion_info::internal_get_grade_state($item, $grade, true));
     }
 
     /**
      * @test ::get_activities
      */
-    public function test_get_activities() {
+    public function test_get_activities(): void {
         global $CFG;
         $this->resetAfterTest();
 
@@ -1317,7 +1397,7 @@ class completionlib_test extends advanced_testcase {
     /**
      * @test ::has_activities
      */
-    public function test_has_activities() {
+    public function test_has_activities(): void {
         global $CFG;
         $this->resetAfterTest();
 
@@ -1345,7 +1425,7 @@ class completionlib_test extends advanced_testcase {
      * @covers ::delete_course_completion_data
      * @covers ::delete_all_completion_data
      */
-    public function test_course_delete_prerequisite() {
+    public function test_course_delete_prerequisite(): void {
         global $DB;
 
         $this->setup_data();
@@ -1383,7 +1463,7 @@ class completionlib_test extends advanced_testcase {
      *
      * @covers \core\event\course_module_completion_updated
      */
-    public function test_course_module_completion_updated_event() {
+    public function test_course_module_completion_updated_event(): void {
         global $USER, $CFG;
 
         $this->setup_data();
@@ -1414,7 +1494,6 @@ class completionlib_test extends advanced_testcase {
         $this->assertEquals($USER->id, $event->userid);
         $this->assertEquals($this->user->id, $event->relateduserid);
         $this->assertInstanceOf('moodle_url', $event->get_url());
-        $this->assertEventLegacyData($current, $event);
     }
 
     /**
@@ -1422,7 +1501,7 @@ class completionlib_test extends advanced_testcase {
      *
      * @covers \core\event\course_completed
      */
-    public function test_course_completed_event() {
+    public function test_course_completed_event(): void {
         global $USER;
 
         $this->setup_data();
@@ -1444,8 +1523,6 @@ class completionlib_test extends advanced_testcase {
         $this->assertEquals($this->user->id, $event->relateduserid);
         $this->assertEquals(context_course::instance($this->course->id), $event->get_context());
         $this->assertInstanceOf('moodle_url', $event->get_url());
-        $data = $ccompletion->get_record_data();
-        $this->assertEventLegacyData($data, $event);
     }
 
     /**
@@ -1453,7 +1530,7 @@ class completionlib_test extends advanced_testcase {
      *
      * @covers \core\event\course_completed
      */
-    public function test_course_completed_message() {
+    public function test_course_completed_message(): void {
         $this->setup_data();
         $this->setAdminUser();
 
@@ -1481,7 +1558,7 @@ class completionlib_test extends advanced_testcase {
      *
      * @covers \core\event\course_completion_updated
      */
-    public function test_course_completion_updated_event() {
+    public function test_course_completion_updated_event(): void {
         $this->setup_data();
         $coursecontext = context_course::instance($this->course->id);
         $coursecompletionevent = \core\event\course_completion_updated::create(
@@ -1502,14 +1579,12 @@ class completionlib_test extends advanced_testcase {
         $this->assertEquals($this->course->id, $event->courseid);
         $this->assertEquals($coursecontext, $event->get_context());
         $this->assertInstanceOf('moodle_url', $event->get_url());
-        $expectedlegacylog = array($this->course->id, 'course', 'completion updated', 'completion.php?id='.$this->course->id);
-        $this->assertEventLegacyLogData($expectedlegacylog, $event);
     }
 
     /**
      * @covers \completion_can_view_data
      */
-    public function test_completion_can_view_data() {
+    public function test_completion_can_view_data(): void {
         $this->setup_data();
 
         $student = $this->getDataGenerator()->create_user();
@@ -1547,7 +1622,7 @@ class completionlib_test extends advanced_testcase {
      * @covers ::get_grade_completion
      */
     public function test_get_grade_completion(bool $completionusegrade, bool $hasgrade, ?int $passinggrade,
-        ?string $expectedexception, ?int $expectedresult) {
+        ?string $expectedexception, ?int $expectedresult): void {
         $this->setup_data();
 
         /** @var \mod_assign_generator $assigngenerator */
@@ -1580,7 +1655,7 @@ class completionlib_test extends advanced_testcase {
      *
      * @covers ::get_grade_completion
      */
-    public function test_get_grade_completion_without_grade_item() {
+    public function test_get_grade_completion_without_grade_item(): void {
         global $DB;
 
         $this->setup_data();
@@ -1620,8 +1695,9 @@ class completionlib_test extends advanced_testcase {
      *
      * @covers \aggregate_completions
      */
-    public function test_aggregate_completions() {
-        global $DB;
+    public function test_aggregate_completions(): void {
+        global $DB, $CFG;
+        require_once($CFG->dirroot.'/completion/criteria/completion_criteria_activity.php');
         $this->resetAfterTest(true);
         $time = time();
 
@@ -1716,7 +1792,7 @@ class completionlib_test extends advanced_testcase {
      *
      * @covers \completion_completion::_save
      */
-    public function test_save() {
+    public function test_save(): void {
         global $DB;
         $this->resetAfterTest(true);
 
@@ -1743,7 +1819,6 @@ class completionlib_test extends advanced_testcase {
 
         // We're testing a private method, so we need to setup reflector magic.
         $method = new ReflectionMethod($ccompletion, '_save');
-        $method->setAccessible(true); // Allow accessing of private method.
         $completionid = $method->invoke($ccompletion);
         $completions = $DB->get_records('course_completions');
         $this->assertEquals(count($completions), 1);
@@ -1751,7 +1826,6 @@ class completionlib_test extends advanced_testcase {
 
         $ccompletion->id = 0;
         $method = new ReflectionMethod($ccompletion, '_save');
-        $method->setAccessible(true); // Allow accessing of private method.
         $completionid = $method->invoke($ccompletion);
         $this->assertDebuggingCalled('Can not update data object, no id!');
         $this->assertNull($completionid);
@@ -1762,7 +1836,7 @@ class completionlib_test extends advanced_testcase {
      *
      * @covers \completion_completion::mark_enrolled
      */
-    public function test_mark_enrolled() {
+    public function test_mark_enrolled(): void {
         global $DB;
         $this->resetAfterTest(true);
 
@@ -1805,7 +1879,7 @@ class completionlib_test extends advanced_testcase {
      *
      * @covers \completion_completion::mark_inprogress
      */
-    public function test_mark_inprogress() {
+    public function test_mark_inprogress(): void {
         global $DB;
         $this->resetAfterTest(true);
 
@@ -1848,7 +1922,7 @@ class completionlib_test extends advanced_testcase {
      *
      * @covers \completion_completion::mark_complete
      */
-    public function test_mark_complete() {
+    public function test_mark_complete(): void {
         global $DB;
         $this->resetAfterTest(true);
 
@@ -1890,7 +1964,7 @@ class completionlib_test extends advanced_testcase {
      *
      * @covers \completion_criteria_completion::mark_complete
      */
-    public function test_criteria_mark_complete() {
+    public function test_criteria_mark_complete(): void {
         global $DB;
         $this->resetAfterTest(true);
 
@@ -1922,6 +1996,49 @@ class completionlib_test extends advanced_testcase {
         $this->assertEquals(1, count($completions));
         $this->assertEquals(reset($completions)->id, $completionid);
     }
+
+    /**
+     * Test that data is cleaned when we reset a course completion data
+     *
+     * @covers ::delete_all_completion_data
+     */
+    public function test_course_reset_completion(): void {
+        global $DB;
+
+        $this->setup_data();
+
+        $page = $this->getDataGenerator()->create_module('page', [
+            'course' => $this->course->id,
+            'completion' => COMPLETION_ENABLED,
+            'completionview' => COMPLETION_VIEW_REQUIRED,
+        ]);
+        $cm = cm_info::create(get_coursemodule_from_instance('page', $page->id));
+        $completion = new completion_info($this->course);
+        $completion->set_module_viewed($cm, $this->user->id);
+        // Sanity test.
+        $this->assertTrue($DB->record_exists_select('course_modules_completion',
+            'coursemoduleid IN (SELECT id FROM {course_modules} WHERE course=:course)',
+            ['course' => $this->course->id]
+        ));
+        $this->assertTrue($DB->record_exists_select('course_modules_viewed',
+            'coursemoduleid IN (SELECT id FROM {course_modules} WHERE course=:course)',
+            ['course' => $this->course->id]
+        ));
+        // Deleting the prerequisite course should remove the completion criteria.
+        $resetdata = new \stdClass();
+        $resetdata->id = $this->course->id;
+        $resetdata->reset_completion = true;
+        reset_course_userdata($resetdata);
+
+        $this->assertFalse($DB->record_exists_select('course_modules_completion',
+            'coursemoduleid IN (SELECT id FROM {course_modules} WHERE course=:course)',
+            ['course' => $this->course->id]
+        ));
+        $this->assertFalse($DB->record_exists_select('course_modules_viewed',
+            'coursemoduleid IN (SELECT id FROM {course_modules} WHERE course=:course)',
+            ['course' => $this->course->id]
+        ));
+    }
 }
 
 class core_completionlib_fake_recordset implements Iterator {
@@ -1933,23 +2050,25 @@ class core_completionlib_fake_recordset implements Iterator {
         $this->index = 0;
     }
 
+    #[\ReturnTypeWillChange]
     public function current() {
         return $this->values[$this->index];
     }
 
+    #[\ReturnTypeWillChange]
     public function key() {
         return $this->values[$this->index];
     }
 
-    public function next() {
+    public function next(): void {
         $this->index++;
     }
 
-    public function rewind() {
+    public function rewind(): void {
         $this->index = 0;
     }
 
-    public function valid() {
+    public function valid(): bool {
         return count($this->values) > $this->index;
     }
 

@@ -22,9 +22,7 @@ Feature: Users can use the Resources preset
     And I am on the "Student resources" "data activity" page logged in as teacher1
     And I follow "Presets"
     And I click on "fullname" "radio" in the "Resources" "table_row"
-    And I click on "Use preset" "button"
-    And I click on "Continue" "button"
-    And I click on "Continue" "button"
+    And I click on "Use this preset" "button"
     And the following "mod_data > entries" exist:
       | database | user     | Title                | Description    | Type  | Author             | Web link                      | Cover      |
       | data1    | student1 | My favourite book    | Book content   | Type1 | The book author    | http://myfavouritebook.cat    | first.png  |
@@ -76,13 +74,15 @@ Feature: Users can use the Resources preset
     Given I am on the "Student resources" "data activity" page logged in as student1
     And "My favourite book" "text" should appear before "My favourite podcast" "text"
     When I click on "Advanced search" "checkbox"
+    And I should see "First name"
+    And I should see "Last name"
     And I set the field "Title" to "book"
-    And I press "Save settings"
+    And I click on "Save settings" "button" in the "data_adv_form" "region"
     Then I should see "My favourite book"
     And I should not see "My favourite podcast"
     But I set the field "Title" to "favourite"
     And I set the field "Order" to "Descending"
-    And I press "Save settings"
+    And I click on "Save settings" "button" in the "data_adv_form" "region"
     And "My favourite podcast" "text" should appear before "My favourite book" "text"
 
   @javascript
@@ -99,3 +99,29 @@ Feature: Users can use the Resources preset
     And I should see "This is the author"
     And I should see "https://thisisthelink.cat"
     And I should see "Type2"
+
+  @javascript
+  Scenario: Resources. Renaming a field should affect the template
+    Given I am on the "Student resources" "data activity" page logged in as teacher1
+    And I navigate to "Fields" in current page administration
+    And I open the action menu in "Type" "table_row"
+    And I choose "Edit" in the open action menu
+    And I set the field "Field name" to "Edited field name"
+    And I press "Save"
+    And I should see "Field updated"
+    When I navigate to "Database" in current page administration
+    Then I click on "Advanced search" "checkbox"
+    And I should see "Edited field name"
+    And I click on "Add entry" "button"
+    And I should see "Edited field name"
+
+  @javascript
+  Scenario: Resources. Has otherfields tag
+    Given the following "mod_data > fields" exist:
+      | database | type | name        | description            |
+      | data1    | text | Extra field | Test field description |
+    And I am on the "Student resources" "data activity" page logged in as teacher1
+    When I select "Single view" from the "jump" singleselect
+    Then I should see "Extra field"
+    And I click on "Add entry" "button"
+    And I should see "Extra field"

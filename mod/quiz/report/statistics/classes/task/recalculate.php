@@ -16,8 +16,8 @@
 
 namespace quiz_statistics\task;
 
-use quiz_attempt;
-use quiz;
+use core\dml\sql_join;
+use mod_quiz\quiz_attempt;
 use quiz_statistics_report;
 
 defined('MOODLE_INTERNAL') || die();
@@ -35,54 +35,83 @@ require_once($CFG->dirroot . '/mod/quiz/report/statistics/report.php');
  * @author     Nathan Nguyen <nathannguyen@catalyst-au.net>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class recalculate extends \core\task\scheduled_task {
+class recalculate extends \core\task\adhoc_task {
+    /**
+     * The time to delay queued runs by, to prevent repeated recalculations.
+     */
+    const DELAY = HOURSECS;
 
-    public function get_name() {
+    /**
+     * Create a new instance of the task.
+     *
+     * This sets the properties so that only one task will be queued at a time for a given quiz.
+     *
+     * @param int $quizid
+     * @return recalculate
+     */
+    public static function instance(int $quizid): recalculate {
+        $task = new self();
+        $task->set_component('quiz_statistics');
+        $task->set_custom_data((object)[
+            'quizid' => $quizid,
+        ]);
+        return $task;
+    }
+
+
+    public function get_name(): string {
         return get_string('recalculatetask', 'quiz_statistics');
     }
 
-    public function execute() {
+    public function execute(): void {
         global $DB;
-        // TODO: MDL-75197, add quizid in quiz_statistics so that it is simpler to find quizzes for stats calculation.
-        // Only calculate stats for quizzes which have recently finished attempt.
-        $sql = "
-            SELECT qa.quiz, MAX(qa.timefinish) as timefinish
-              FROM {quiz_attempts} qa
-             WHERE qa.preview = 0
-               AND qa.state = :quizstatefinished
-          GROUP BY qa.quiz
-        ";
-
-        $params = [
-            "quizstatefinished" => quiz_attempt::FINISHED,
-        ];
-
-        $latestattempts = $DB->get_records_sql($sql, $params);
-
-        foreach ($latestattempts as $attempt) {
-            $quizobj = quiz::create($attempt->quiz);
-            $quiz = $quizobj->get_quiz();
-            // Hash code for question stats option in question bank.
-            $qubaids = quiz_statistics_qubaids_condition($quiz->id, new \core\dml\sql_join(), $quiz->grademethod);
-
-            // Check if there is any existing question stats, and it has been calculated after latest quiz attempt.
-            $records = $DB->get_records_select(
-                'quiz_statistics',
-                'hashcode = :hashcode AND timemodified > :timefinish',
-                [
-                    'hashcode' => $qubaids->get_hash_code(),
-                    'timefinish' => $attempt->timefinish
-                ]
-            );
-
-            if (empty($records)) {
-                $report = new quiz_statistics_report();
-                // Clear old cache.
-                $report->clear_cached_data($qubaids);
-                // Calculate new stats.
-                $report->calculate_questions_stats_for_question_bank($quiz->id);
-            }
+        $dateformat = get_string('strftimedatetimeshortaccurate', 'core_langconfig');
+        $data = $this->get_custom_data();
+        $quiz = $DB->get_record('quiz', ['id' => $data->quizid]);
+        if (!$quiz) {
+            mtrace('Could not find quiz with ID ' . $data->quizid . '.');
+            return;
         }
-        return true;
+        $course = $DB->get_record('course', ['id' => $quiz->course]);
+        if (!$course) {
+            mtrace('Could not find course with ID ' . $quiz->course . '.');
+            return;
+        }
+        $attemptcount = $DB->count_records('quiz_attempts', ['quiz' => $data->quizid, 'state' => quiz_attempt::FINISHED]);
+        if ($attemptcount === 0) {
+            mtrace('Could not find any finished attempts for course with ID ' . $data->quizid . '.');
+            return;
+        }
+
+        mtrace("Re-calculating statistics for quiz {$quiz->name} ({$quiz->id}) " .
+            "from course {$course->shortname} ({$course->id}) with {$attemptcount} attempts, start time " .
+            userdate(time(), $dateformat) . " ...");
+
+        $qubaids = quiz_statistics_qubaids_condition(
+            $quiz->id,
+            new sql_join(),
+            $quiz->grademethod
+        );
+
+        $report = new quiz_statistics_report();
+        $report->clear_cached_data($qubaids);
+        $report->calculate_questions_stats_for_question_bank($quiz->id);
+        mtrace('    Calculations completed at ' . userdate(time(), $dateformat) . '.');
+    }
+
+    /**
+     * Queue an instance of this task to happen after a delay.
+     *
+     * Multiple events may happen over a short period that require a recalculation. Rather than
+     * run the recalculation each time, this will queue a single run of the task for a given quiz,
+     * within the delay period.
+     *
+     * @param int $quizid The quiz to run the recalculation for.
+     * @return bool true of the task was queued.
+     */
+    public static function queue_future_run(int $quizid): bool {
+        $task = self::instance($quizid);
+        $task->set_next_run_time(time() + self::DELAY);
+        return \core\task\manager::queue_adhoc_task($task, true);
     }
 }

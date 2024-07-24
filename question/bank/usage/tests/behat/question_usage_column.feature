@@ -21,24 +21,33 @@ Feature: Use the qbank plugin manager page for question usage
     And I navigate to "Plugins > Question bank plugins > Manage question bank plugins" in site administration
     And I should see "Question usage"
     When I click on "Disable" "link" in the "Question usage" "table_row"
-    And I am on the "Test quiz" "quiz activity" page
-    And I navigate to "Question bank" in current page administration
+    And I am on the "Test quiz" "mod_quiz > question bank" page
     Then I should not see "Usage"
     And I navigate to "Plugins > Question bank plugins > Manage question bank plugins" in site administration
     And I click on "Enable" "link" in the "Question usage" "table_row"
-    And I am on the "Test quiz" "quiz activity" page
-    And I navigate to "Question bank" in current page administration
+    And I am on the "Test quiz" "mod_quiz > question bank" page
     And I should see "Usage"
 
   @javascript
   Scenario: Question usage modal should work without any usage data
-    Given I log in as "admin"
-    And I am on the "Test quiz" "quiz activity" page
-    And I navigate to "Question bank" in current page administration
-    And I set the field "Select a category" to "Test questions"
+    And I am on the "Test quiz" "mod_quiz > question bank" page logged in as "admin"
+    And I apply question bank filter "Category" with value "Test questions"
     And I should see "Test questions"
     And I should see "0" on the usage column
     When I click "0" on the usage column
     Then I should see "Version 1"
+    And I should see "v1 (latest)" in the "Question 1" "question"
     And I click on "Close" "button" in the ".modal-dialog" "css_element"
     And I should see "0" on the usage column
+
+  @javascript
+  Scenario: Question usage modal should work with usage data
+    Given quiz "Test quiz" contains the following questions:
+      | question       | page |
+      | First question | 1    |
+    And I am on the "Test quiz" "mod_quiz > question bank" page logged in as "admin"
+    And I apply question bank filter "Category" with value "Test questions"
+    And I should see "Test questions"
+    And I should see "1" on the usage column
+    When I click "1" on the usage column
+    Then "Test quiz" "table_row" should exist in the "question-usage_table" "region"

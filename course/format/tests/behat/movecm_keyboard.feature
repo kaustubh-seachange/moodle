@@ -11,10 +11,11 @@ Feature: Move activity using keyboard
       | category         | 0        |
       | enablecompletion | 1        |
       | numsections      | 4        |
+      | initsections     | 1        |
     And the following "activities" exist:
       | activity | name              | intro                       | course | idnumber | section |
       | assign   | Activity sample 1 | Test assignment description | C1     | sample1  | 1       |
-      | book     | Activity sample 2 | Test book description       | C1     | sample2  | 2       |
+      | book     | Activity sample 2 |                             | C1     | sample2  | 2       |
       | choice   | Activity sample 3 | Test choice description     | C1     | sample3  | 3       |
       | choice   | Other sample 3    | Test choice description     | C1     | sample31 | 3       |
     And I log in as "admin"
@@ -31,7 +32,7 @@ Feature: Move activity using keyboard
     And I press the down key
     And I press the down key
     And I press enter
-    Then I should see "Activity sample 3" in the "Topic 2" "section"
+    Then I should see "Activity sample 3" in the "Section 2" "section"
 
   @javascript
   Scenario: Move activity to another section selecting an inner activity
@@ -47,7 +48,7 @@ Feature: Move activity using keyboard
     # Select first activity.
     And I press the down key
     And I press enter
-    Then I should see "Activity sample 3" in the "Topic 2" "section"
+    Then I should see "Activity sample 3" in the "Section 2" "section"
 
   @javascript
   Scenario: Close a section in the move modal
@@ -65,7 +66,7 @@ Feature: Move activity using keyboard
     # Move to section 4.
     And I press the down key
     And I press enter
-    Then I should see "Activity sample 3" in the "Topic 4" "section"
+    Then I should see "Activity sample 3" in the "Section 4" "section"
 
   @javascript
   Scenario: Move activity using open all sections
@@ -87,7 +88,7 @@ Feature: Move activity using keyboard
     And I press the down key
     And I press the down key
     And I press enter
-    Then I should see "Activity sample 3" in the "Topic 4" "section"
+    Then I should see "Activity sample 3" in the "Section 4" "section"
 
   @javascript
   Scenario: Move activity using go to the last element
@@ -100,7 +101,7 @@ Feature: Move activity using keyboard
     And I press the end key
     # Move down to section 4
     And I press enter
-    Then I should see "Activity sample 3" in the "Topic 4" "section"
+    Then I should see "Activity sample 3" in the "Section 4" "section"
 
   @javascript
   Scenario: Move activity using go to the first element

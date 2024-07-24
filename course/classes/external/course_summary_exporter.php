@@ -64,7 +64,7 @@ class course_summary_exporter extends \core\external\exporter {
         if ($progress === 0 || $progress > 0) {
             $hasprogress = true;
         }
-        $progress = floor($progress);
+        $progress = floor($progress ?? 0);
         $coursecategory = \core_course_category::get($this->data->category, MUST_EXIST, true);
         return array(
             'fullnamedisplay' => get_course_display_name_for_list($this->data),
@@ -95,10 +95,12 @@ class course_summary_exporter extends \core\external\exporter {
             ),
             'summary' => array(
                 'type' => PARAM_RAW,
-                'null' => NULL_ALLOWED
+                'null' => NULL_ALLOWED,
+                'default' => null,
             ),
             'summaryformat' => array(
                 'type' => PARAM_INT,
+                'default' => FORMAT_MOODLE,
             ),
             'startdate' => array(
                 'type' => PARAM_INT,
@@ -116,6 +118,11 @@ class course_summary_exporter extends \core\external\exporter {
             'showcompletionconditions' => [
                 'type' => PARAM_BOOL,
                 'null' => NULL_ALLOWED
+            ],
+            'pdfexportfont' => [
+                'type' => PARAM_TEXT,
+                'null' => NULL_ALLOWED,
+                'default' => null,
             ],
         );
     }

@@ -23,21 +23,25 @@ Feature: The recently accessed items block allows users to easily access their m
       | name     | Test forum name |
     And I log in as "student1"
 
+  @accessibility
   Scenario: User has not accessed any item
     Then I should see "No recent items" in the "Recently accessed items" "block"
+    And the page should meet accessibility standards
 
+  @accessibility
   Scenario: User has accessed some items
     Given I change window size to "large"
     When I am on the "Test forum name" "forum activity" page
     And I follow "Dashboard"
     Then I should see "Test forum name" in the "Recently accessed items" "block"
     And I should not see "Show more items" in the "Recently accessed items" "block"
+    And the page should meet accessibility standards
 
   Scenario: User has accessed more than 3 items
     Given the following "activities" exist:
       | activity   | name                   | intro                         | course | idnumber    |
       | assign     | Test assignment name   | Test assignment description   | C1     | assign1     |
-      | book       | Test book name         | Test book description         | C1     | book1       |
+      | book       | Test book name         |                               | C1     | book1       |
       | choice     | Test choice name       | Test choice description       | C1     | choice1     |
       | data       | Test database name     | Test database description     | C1     | data1       |
     And I change window size to "large"
@@ -52,6 +56,7 @@ Feature: The recently accessed items block allows users to easily access their m
     And I click on "Show more items" "button" in the "Recently accessed items" "block"
     And I should see "Test forum name" in the "Recently accessed items" "block"
     And I turn editing mode on
+    And I am on homepage
     And I configure the "Recently accessed items" block
     And I set the following fields to these values:
       | Region | content |

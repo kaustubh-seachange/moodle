@@ -35,13 +35,22 @@ define(['jquery', 'core/ajax', 'core/templates', 'core/notification', 'core/cust
     };
 
     /**
-     * Record that the user is a contact.
+     * Check the state of the element, if the current user has sent a contact request or not.
      *
-     * @method setContact
+     * @method isRequested
+     * @param {object} element jQuery object for the button
+     * @return {bool}
+     */
+    let isRequested = (element) => element.attr('data-is-requested') == '1';
+
+    /**
+     * Record that the user has sent a contact request.
+     *
+     * @method setContactRequested
      * @param {object} element jQuery object for the button
      */
-    var setContact = function(element) {
-        element.attr('data-is-contact', '1');
+    var setContactRequested = function(element) {
+        element.attr('data-is-requested', '1');
     };
 
     /**
@@ -74,6 +83,17 @@ define(['jquery', 'core/ajax', 'core/templates', 'core/notification', 'core/cust
      */
     var getCurrentUserId = function(element) {
         return element.attr('data-currentuserid');
+    };
+
+    /**
+     * Check whether a text label should be displayed or not.
+     *
+     * @method getUserId
+     * @param {object} element jQuery object for the button
+     * @return {int}
+     */
+    var displayTextLabel = function(element) {
+        return element.attr('data-display-text-label') == '1';
     };
 
     /**
@@ -133,8 +153,12 @@ define(['jquery', 'core/ajax', 'core/templates', 'core/notification', 'core/cust
             }
         };
         sendRequest(element, request).done(function() {
-            setContact(element);
-            Templates.render('message/remove_contact_button', {}).done(function(html, js) {
+            setContactRequested(element);
+            element.addClass('disabled');
+            const templateContext = {
+                'displaytextlabel': displayTextLabel(element)
+            };
+            Templates.render('message/contact_request_sent', templateContext).done(function(html, js) {
                 Templates.replaceNodeContents(element, html, js);
             });
         });
@@ -162,7 +186,10 @@ define(['jquery', 'core/ajax', 'core/templates', 'core/notification', 'core/cust
 
         sendRequest(element, request).done(function() {
             setNotContact(element);
-            Templates.render('message/add_contact_button', {}).done(function(html, js) {
+            const templateContext = {
+                'displaytextlabel': displayTextLabel(element)
+            };
+            Templates.render('message/add_contact_button', templateContext).done(function(html, js) {
                 Templates.replaceNodeContents(element, html, js);
             });
         });
@@ -179,7 +206,7 @@ define(['jquery', 'core/ajax', 'core/templates', 'core/notification', 'core/cust
     var enhance = function(element) {
         element = $(element);
 
-        if (!element.children('.loading-icon').length) {
+        if (!element.children('.loading-icon').length && !isRequested(element)) {
             // Add the loading gif if it isn't already there.
             Templates.render('core/loading', {}).done(function(html, js) {
                 element.append(html, js);
@@ -191,7 +218,7 @@ define(['jquery', 'core/ajax', 'core/templates', 'core/notification', 'core/cust
         element.on(CustomEvents.events.activate, function(e, data) {
             if (isContact(element)) {
                 removeContact(element);
-            } else {
+            } else if (!isRequested(element)) {
                 addContact(element);
             }
             e.preventDefault();

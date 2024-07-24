@@ -49,6 +49,10 @@ define('CACHE_DISABLE_ALL', true); // Disables caching.. just in case.
 define('PHPUNIT_TEST', false);
 define('IGNORE_COMPONENT_CACHE', true);
 define('MDL_PERF_TEST', false);
+define('MDL_PERF', false);
+define('MDL_PERFTOFOOT', false);
+define('MDL_PERFTOLOG', false);
+define('MDL_PERFINC', false);
 
 // Servers should define a default timezone in php.ini, but if they don't then make sure something is defined.
 if (!function_exists('date_default_timezone_set') or !function_exists('date_default_timezone_get')) {
@@ -194,7 +198,18 @@ if (!empty($memlimit) and $memlimit != -1) {
     }
 }
 
-// Continue with lib loading
+// Point pear include path to moodles lib/pear so that includes and requires will search there for files before anywhere else
+// the problem is that we need specific version of quickforms and hacked excel files :-(.
+ini_set('include_path', $CFG->libdir.'/pear' . PATH_SEPARATOR . ini_get('include_path'));
+
+// Register our classloader, in theory somebody might want to replace it to load other hacked core classes.
+if (defined('COMPONENT_CLASSLOADER')) {
+    spl_autoload_register(COMPONENT_CLASSLOADER);
+} else {
+    spl_autoload_register('core_component::classloader');
+}
+
+// Continue with lib loading.
 require_once($CFG->libdir.'/classes/text.php');
 require_once($CFG->libdir.'/classes/string_manager.php');
 require_once($CFG->libdir.'/classes/string_manager_install.php');
@@ -209,18 +224,6 @@ require_once($CFG->libdir.'/adminlib.php');
 require_once($CFG->libdir.'/environmentlib.php');
 require_once($CFG->libdir.'/componentlib.class.php');
 require_once($CFG->dirroot.'/cache/lib.php');
-
-//point pear include path to moodles lib/pear so that includes and requires will search there for files before anywhere else
-//the problem is that we need specific version of quickforms and hacked excel files :-(
-ini_set('include_path', $CFG->libdir.'/pear' . PATH_SEPARATOR . ini_get('include_path'));
-
-// Register our classloader, in theory somebody might want to replace it to load other hacked core classes.
-// Required because the database checks below lead to session interaction which is going to lead us to requiring autoloaded classes.
-if (defined('COMPONENT_CLASSLOADER')) {
-    spl_autoload_register(COMPONENT_CLASSLOADER);
-} else {
-    spl_autoload_register('core_component::classloader');
-}
 
 require('version.php');
 $CFG->target_release = $release;
@@ -478,7 +481,7 @@ if ($config->stage == INSTALL_DATABASE) {
     if ($hint_database !== '') {
         echo '<div class="alert alert-danger">'.$hint_database.'</div>';
     }
-    echo '</div>';
+
     install_print_footer($config);
     die;
 }
@@ -610,10 +613,7 @@ if ($config->stage == INSTALL_PATHS) {
         if ($hint_admindir !== '') {
             echo '<div class="alert alert-danger">'.$hint_admindir.'</div>';
         }
-        echo '</div>';
     }
-
-    echo '</div>';
 
     install_print_footer($config);
     die;
@@ -652,4 +652,3 @@ echo '</div>';
 
 install_print_footer($config);
 die;
-

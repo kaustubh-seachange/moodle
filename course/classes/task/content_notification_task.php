@@ -14,14 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-/**
- * Class handling course content updates notifications.
- *
- * @package    core_course
- * @copyright  2021 Juan Leyva <juan@moodle.com>
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-
 namespace core_course\task;
 
 use core\task\adhoc_task;
@@ -40,8 +32,6 @@ class content_notification_task extends adhoc_task {
 
     /**
      * Run the main task.
-     *
-     * @throws \coding_exception if something wrong happens.
      */
     public function execute() {
         global $CFG, $OUTPUT;
@@ -62,9 +52,7 @@ class content_notification_task extends adhoc_task {
 
         // Get only active users.
         $coursecontext = \context_course::instance($course->id);
-        $modcontext = \context_module::instance($cm->id);
         $users = get_enrolled_users($coursecontext, '', 0, 'u.*', null, 0, 0, true);
-
         if (empty($users)) {
             return;
         }
@@ -78,12 +66,11 @@ class content_notification_task extends adhoc_task {
             from user with id {$userfrom->id}.");
         foreach ($users as $user) {
 
-            cron_setup_user($user, $course);
+            \core\cron::setup_user($user, $course);
 
+            // Ensure that the activity is available/visible to the user.
             $cm = get_fast_modinfo($course)->cms[$cm->id];
-
-            if (!$cm->uservisible && !$cm->is_visible_on_course_page()) {
-                // User can't access or see the activity in the course page.
+            if (!\core_availability\info_module::is_user_visible($cm, $user->id, false)) {
                 $this->log("Ignoring user {$user->id} (no permissions to see the module)", 1);
                 continue;
             }
@@ -91,9 +78,9 @@ class content_notification_task extends adhoc_task {
             // Get module names in the user's language.
             $modnames = get_module_types_names();
             $a = [
-                'coursename' => get_course_display_name_for_list($course),
+                'coursename' => format_string(get_course_display_name_for_list($course), true, ['context' => $coursecontext]),
                 'courselink' => (new \moodle_url('/course/view.php', ['id' => $course->id]))->out(false),
-                'modulename' => format_string($cm->name, $modcontext->id),
+                'modulename' => $cm->get_formatted_name(),
                 'moduletypename' => $modnames[$cm->modname],
                 'link' => (new \moodle_url('/mod/' . $cm->modname . '/view.php', ['id' => $cm->id]))->out(false),
                 'notificationpreferenceslink' =>
@@ -120,20 +107,19 @@ class content_notification_task extends adhoc_task {
             $eventdata->fullmessagehtml = $messagebody;
             $eventdata->smallmessage = strip_tags($eventdata->fullmessagehtml);
             $eventdata->contexturl = (new \moodle_url('/mod/' . $cm->modname . '/view.php', ['id' => $cm->id]))->out(false);
-            $eventdata->contexturlname = $cm->name;
+            $eventdata->contexturlname = $cm->get_formatted_name();
             $eventdata->notification = 1;
-            $eventdata->customdata  = [
-                'notificationiconurl' => $cm->get_icon_url()->out(false),
-            ];
-            if ($courseimage = \core_course\external\course_summary_exporter::get_course_image($course)) {
-                $eventdata->customdata['notificationpictureurl'] = $courseimage;
-            }
 
-            $completion = \core_completion\cm_completion_details::get_instance($cm, $user->id);
+            // Add notification custom data.
+            $eventcustomdata = ['notificationiconurl' => $cm->get_icon_url()->out(false)];
+            if ($courseimage = \core_course\external\course_summary_exporter::get_course_image($course)) {
+                $eventcustomdata['notificationpictureurl'] = $courseimage;
+            }
+            $eventdata->customdata = $eventcustomdata;
+
             $activitydates = \core\activity_dates::get_dates_for_module($cm, $user->id);
             if (!empty($activitydates)) {
-                $activityinfo = new \core_course\output\activity_information($cm, $completion, $activitydates);
-                $data = $activityinfo->export_for_template($OUTPUT);
+                $data = (new \core_course\output\activity_dates($activitydates))->export_for_template($OUTPUT);
                 foreach ($data->activitydates as $date) {
                     $eventdata->fullmessagehtml .= \html_writer::div($date['label'] . ' ' . $date['datestring']);
                 }

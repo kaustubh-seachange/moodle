@@ -25,8 +25,8 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version  = 2022041900;
-$plugin->requires = 2022041200;  // Requires this Moodle version.
+$plugin->version  = 2024042200;
+$plugin->requires = 2024041600;  // Requires this Moodle version.
 $plugin->component= 'filter_data';
 
-$plugin->dependencies = array('mod_data' => 2022041200);
+$plugin->dependencies = ['mod_data' => 2024041600];

@@ -38,7 +38,7 @@ Feature: Manage badges is not shown when there are no existing badges.
 #    Badge is not enabled so is not listed.
     And I should not see "Testing course badge"
     And I click on "Manage badges" "button"
-    And I click on "Edit" "link" in the "Testing course badge" "table_row"
+    And I press "Edit" action in the "Testing course badge" report row
     And I click on "Add criteria" "button"
     And I set the field "type" to "Manual issue by role"
     And I expand all fieldsets
@@ -51,8 +51,8 @@ Feature: Manage badges is not shown when there are no existing badges.
 #    Badge is not enabled yet so is not listed.
     And I should not see "Testing course badge"
     And I click on "Manage badges" "button"
-    And I click on "Enable access" "link" in the "Testing course badge" "table_row"
-    And I click on "Continue" "button"
+    And I press "Enable access" action in the "Testing course badge" report row
+    And I click on "Enable" "button" in the "Confirm" "dialogue"
     And I should see "Testing course badge"
     And I click on "Back" "button"
     And "Manage badges" "button" should exist
@@ -91,8 +91,8 @@ Feature: Manage badges is not shown when there are no existing badges.
     And I am on the "C1" "Course" page logged in as "admin"
     And I navigate to "Badges" in current page administration
     And I click on "Manage badges" "button"
-    And I click on "Enable access" "link" in the "Testing course badge" "table_row"
-    And I press "Continue"
+    And I press "Enable access" action in the "Testing course badge" report row
+    And I click on "Enable" "button" in the "Confirm" "dialogue"
     And I log out
     # Now student should see the Badges link.
     And I am on the "C1" "Course" page logged in as "student1"
@@ -100,3 +100,6 @@ Feature: Manage badges is not shown when there are no existing badges.
     And "Manage badges" "button" should not exist
     And "Add a new badge" "button" should not exist
     And I should not see "There are currently no badges available for users to earn."
+    And the following should exist in the "reportbuilder-table" table:
+      | Name                  | Description                       | Criteria            |
+      | Testing course badge  | Testing course badge description  | Awarded by: Teacher |

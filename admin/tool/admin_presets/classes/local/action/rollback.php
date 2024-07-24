@@ -52,7 +52,7 @@ class rollback extends base {
             );
 
             $context->applications[] = [
-                'timeapplied' => strftime($format, $application->time),
+                'timeapplied' => \core_date::strftime($format, (int)$application->time),
                 'user' => fullname($user),
                 'action' => $rollbacklink->out(false),
             ];
@@ -73,7 +73,7 @@ class rollback extends base {
     public function execute(): void {
         global $OUTPUT;
 
-        confirm_sesskey();
+        require_sesskey();
 
         list($presetapp, $rollback, $failures) = $this->manager->revert_preset($this->id);
 

@@ -17,6 +17,7 @@
 namespace mod_bigbluebuttonbn\local;
 
 use mod_bigbluebuttonbn\instance;
+use mod_bigbluebuttonbn\local\proxy\bigbluebutton_proxy;
 use mod_bigbluebuttonbn\recording;
 
 /**
@@ -35,8 +36,16 @@ class config {
     /** @var string Default bigbluebutton server shared secret */
     public const DEFAULT_SHARED_SECRET = '0b21fcaf34673a8c3ec8ed877d76ae34';
 
-    /** @var string Default bigbluebutton data processing agreement url */
-    public const DEFAULT_DPA_URL = 'https://blindsidenetworks.com/dpa-moodle-free-tier';
+
+    /** @var string the default bigbluebutton checksum algorithm */
+    public const DEFAULT_CHECKSUM_ALGORITHM = 'SHA256';
+
+    /** @var array list of supported bigbluebutton checksum algorithm */
+    const CHECKSUM_ALGORITHMS = [
+        self::DEFAULT_CHECKSUM_ALGORITHM,
+        'SHA1',
+        'SHA512'
+    ];
 
     /**
      * Returns moodle version.
@@ -56,8 +65,8 @@ class config {
      */
     protected static function defaultvalues(): array {
         return [
-            'server_url' => self::DEFAULT_SERVER_URL,
-            'shared_secret' => self::DEFAULT_SHARED_SECRET,
+            'server_url' => '',
+            'shared_secret' => '',
             'voicebridge_editable' => false,
             'importrecordings_enabled' => false,
             'importrecordings_from_deleted_enabled' => false,
@@ -72,6 +81,7 @@ class config {
             'recordingstatus_enabled' => false,
             'meetingevents_enabled' => false,
             'participant_moderator_default' => '0',
+            'profile_picture_enabled' => false,
             'scheduled_pre_opening' => '10',
             'recordings_enabled' => true,
             'recordings_deleted_default' => false,
@@ -108,10 +118,11 @@ class config {
             'disablenote_editable' => true,
             'hideuserlist_default' => false,
             'hideuserlist_editable' => true,
-            'lockonjoin_default' => true,
-            'lockonjoin_editable' => false,
             'welcome_default' => '',
+            'welcome_editable' => true,
             'default_dpa_accepted' => false,
+            'poll_interval' => bigbluebutton_proxy::DEFAULT_POLL_INTERVAL,
+            'checksum_algorithm' => self::DEFAULT_CHECKSUM_ALGORITHM,
         ];
     }
 
@@ -143,7 +154,7 @@ class config {
         if (isset($CFG->{'bigbluebuttonbn_' . $setting})) {
             return (string) $CFG->{'bigbluebuttonbn_' . $setting};
         }
-        return self::defaultvalue($setting);
+        return (string) self::defaultvalue($setting);
     }
 
     /**
@@ -162,6 +173,27 @@ class config {
      */
     public static function importrecordings_enabled(): bool {
         return (boolean) self::get('importrecordings_enabled');
+    }
+
+    /**
+     * Check if bbb server credentials are invalid.
+     *
+     * @return bool
+     */
+    public static function server_credentials_invalid(): bool {
+        // Test server credentials across all versions of the plugin are flagged.
+        $parsedurl = parse_url(self::get('server_url'));
+        $defaultserverurl = parse_url(self::DEFAULT_SERVER_URL);
+        if (!isset($parsedurl['host'])) {
+            return false;
+        }
+        if (strpos($parsedurl['host'], $defaultserverurl['host']) === 0) {
+            return true;
+        }
+        if (strpos($parsedurl['host'], 'test-install.blindsidenetworks.com') === 0) {
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -215,10 +247,10 @@ class config {
             'disablenote_default' => self::get('disablenote_default'),
             'hideuserlist_editable' => self::get('hideuserlist_editable'),
             'hideuserlist_default' => self::get('hideuserlist_default'),
-            'lockonjoin_editable' => self::get('lockonjoin_editable'),
-            'lockonjoin_default' => self::get('lockonjoin_default'),
             'welcome_default' => self::get('welcome_default'),
             'welcome_editable' => self::get('welcome_editable'),
+            'poll_interval' => self::get('poll_interval'),
+            'guestaccess_enabled' => self::get('guestaccess_enabled'),
         ];
     }
 

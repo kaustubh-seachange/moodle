@@ -48,7 +48,7 @@ class action_event_test extends \advanced_testcase {
      * @dataProvider getters_testcases()
      * @param array $constructorparams Associative array of constructor parameters.
      */
-    public function test_getters($constructorparams) {
+    public function test_getters($constructorparams): void {
         $event = new action_event(
             $constructorparams['event'],
             $constructorparams['action']
@@ -200,7 +200,7 @@ class core_calendar_action_event_test_event_collection implements event_collecti
         return 2;
     }
 
-    public function getIterator() {
+    public function getIterator(): \Traversable {
         foreach ($this->events as $event) {
             yield $event;
         }

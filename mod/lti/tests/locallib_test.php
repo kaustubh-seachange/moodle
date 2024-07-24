@@ -67,7 +67,20 @@ require_once($CFG->dirroot . '/mod/lti/tests/mod_lti_testcase.php');
  */
 class locallib_test extends mod_lti_testcase {
 
-    public function test_split_custom_parameters() {
+    /**
+     * @covers ::lti_split_parameters()
+     *
+     * Test the split parameters function
+     */
+    public function test_split_parameters(): void {
+        $this->assertEquals(lti_split_parameters(''), array());
+        $this->assertEquals(lti_split_parameters('a=1'), array('a' => '1'));
+        $this->assertEquals(lti_split_parameters("a=1\nb=2"), array('a' => '1', 'b' => '2'));
+        $this->assertEquals(lti_split_parameters("a=1\n\rb=2"), array('a' => '1', 'b' => '2'));
+        $this->assertEquals(lti_split_parameters("a=1\r\nb=2"), array('a' => '1', 'b' => '2'));
+    }
+
+    public function test_split_custom_parameters(): void {
         $this->resetAfterTest();
 
         $tool = new \stdClass();
@@ -181,7 +194,7 @@ class locallib_test extends mod_lti_testcase {
         lti_verify_sourcedid($ltiinstance, $parsed);
     }
 
-    public function test_lti_ensure_url_is_https() {
+    public function test_lti_ensure_url_is_https(): void {
         $this->assertEquals('https://moodle.org', lti_ensure_url_is_https('http://moodle.org'));
         $this->assertEquals('https://moodle.org', lti_ensure_url_is_https('moodle.org'));
         $this->assertEquals('https://moodle.org', lti_ensure_url_is_https('https://moodle.org'));
@@ -190,7 +203,7 @@ class locallib_test extends mod_lti_testcase {
     /**
      * Test lti_get_url_thumbprint against various URLs
      */
-    public function test_lti_get_url_thumbprint() {
+    public function test_lti_get_url_thumbprint(): void {
         // Note: trailing and double slash are expected right now.  Must evaluate if it must be removed at some point.
         $this->assertEquals('moodle.org/', lti_get_url_thumbprint('http://MOODLE.ORG'));
         $this->assertEquals('moodle.org/', lti_get_url_thumbprint('http://www.moodle.org'));
@@ -206,7 +219,7 @@ class locallib_test extends mod_lti_testcase {
     /*
      * Verify that lti_build_request does handle resource_link_id as expected
      */
-    public function test_lti_buid_request_resource_link_id() {
+    public function test_lti_buid_request_resource_link_id(): void {
         $this->resetAfterTest();
 
         self::setUser($this->getDataGenerator()->create_user());
@@ -245,7 +258,7 @@ class locallib_test extends mod_lti_testcase {
      * Test lti_build_request's resource_link_description and ensure
      * that the newlines in the description are correct.
      */
-    public function test_lti_build_request_description() {
+    public function test_lti_build_request_description(): void {
         $this->resetAfterTest();
 
         self::setUser($this->getDataGenerator()->create_user());
@@ -283,27 +296,27 @@ class locallib_test extends mod_lti_testcase {
     /**
      * Tests lti_prepare_type_for_save's handling of the "Force SSL" configuration.
      */
-    public function test_lti_prepare_type_for_save_forcessl() {
+    public function test_lti_prepare_type_for_save_forcessl(): void {
         $type = new \stdClass();
         $config = new \stdClass();
 
         // Try when the forcessl config property is not set.
         lti_prepare_type_for_save($type, $config);
-        $this->assertObjectHasAttribute('lti_forcessl', $config);
+        $this->assertObjectHasProperty('lti_forcessl', $config);
         $this->assertEquals(0, $config->lti_forcessl);
         $this->assertEquals(0, $type->forcessl);
 
         // Try when forcessl config property is set.
         $config->lti_forcessl = 1;
         lti_prepare_type_for_save($type, $config);
-        $this->assertObjectHasAttribute('lti_forcessl', $config);
+        $this->assertObjectHasProperty('lti_forcessl', $config);
         $this->assertEquals(1, $config->lti_forcessl);
         $this->assertEquals(1, $type->forcessl);
 
         // Try when forcessl config property is set to 0.
         $config->lti_forcessl = 0;
         lti_prepare_type_for_save($type, $config);
-        $this->assertObjectHasAttribute('lti_forcessl', $config);
+        $this->assertObjectHasProperty('lti_forcessl', $config);
         $this->assertEquals(0, $config->lti_forcessl);
         $this->assertEquals(0, $type->forcessl);
     }
@@ -311,7 +324,7 @@ class locallib_test extends mod_lti_testcase {
     /**
      * Tests lti_load_type_from_cartridge and lti_load_type_if_cartridge
      */
-    public function test_lti_load_type_from_cartridge() {
+    public function test_lti_load_type_from_cartridge(): void {
         $type = new \stdClass();
         $type->lti_toolurl = $this->getExternalTestFileUrl('/ims_cartridge_basic_lti_link.xml');
 
@@ -327,7 +340,7 @@ class locallib_test extends mod_lti_testcase {
     /**
      * Tests lti_load_tool_from_cartridge and lti_load_tool_if_cartridge
      */
-    public function test_lti_load_tool_from_cartridge() {
+    public function test_lti_load_tool_from_cartridge(): void {
         $lti = new \stdClass();
         $lti->toolurl = $this->getExternalTestFileUrl('/ims_cartridge_basic_lti_link.xml');
 
@@ -344,7 +357,7 @@ class locallib_test extends mod_lti_testcase {
     /**
      * Tests for lti_build_content_item_selection_request().
      */
-    public function test_lti_build_content_item_selection_request() {
+    public function test_lti_build_content_item_selection_request(): void {
         $this->resetAfterTest();
 
         $this->setAdminUser();
@@ -433,7 +446,7 @@ class locallib_test extends mod_lti_testcase {
     /**
      * Test for lti_build_content_item_selection_request() with nonexistent tool type ID parameter.
      */
-    public function test_lti_build_content_item_selection_request_invalid_tooltype() {
+    public function test_lti_build_content_item_selection_request_invalid_tooltype(): void {
         $this->resetAfterTest();
 
         $this->setAdminUser();
@@ -448,7 +461,7 @@ class locallib_test extends mod_lti_testcase {
     /**
      * Test for lti_build_content_item_selection_request() with invalid media types parameter.
      */
-    public function test_lti_build_content_item_selection_request_invalid_mediatypes() {
+    public function test_lti_build_content_item_selection_request_invalid_mediatypes(): void {
         $this->resetAfterTest();
 
         $this->setAdminUser();
@@ -475,7 +488,7 @@ class locallib_test extends mod_lti_testcase {
     /**
      * Test for lti_build_content_item_selection_request() with invalid presentation targets parameter.
      */
-    public function test_lti_build_content_item_selection_request_invalid_presentationtargets() {
+    public function test_lti_build_content_item_selection_request_invalid_presentationtargets(): void {
         $this->resetAfterTest();
 
         $this->setAdminUser();
@@ -605,19 +618,125 @@ class locallib_test extends mod_lti_testcase {
      * @param object $expected The expected tool matching the URL.
      * @param array $tools The pool of tools to match the URL with.
      */
-    public function test_lti_get_best_tool_by_url($url, $expected, $tools) {
+    public function test_lti_get_best_tool_by_url($url, $expected, $tools): void {
         $actual = lti_get_best_tool_by_url($url, $tools, null);
         $this->assertSame($expected, $actual);
     }
 
     /**
+     * @covers ::lti_get_tools_by_domain()
+     *
+     * Test lti_get_tools_by_domain.
+     */
+    public function test_lti_get_tools_by_domain(): void {
+        $this->resetAfterTest();
+
+        /** @var \mod_lti_generator $ltigenerator */
+        $ltigenerator = $this->getDataGenerator()->get_plugin_generator('mod_lti');
+
+        // Create a tool type with good domain.
+        $ltigenerator->create_tool_types([
+            'name' => 'Test tool 1',
+            'description' => 'Good example description',
+            'tooldomain' => 'example.com',
+            'baseurl' => 'https://example.com/i/am/?where=here',
+            'state' => LTI_TOOL_STATE_CONFIGURED
+        ]);
+
+        // Create a tool type with bad domain.
+        $ltigenerator->create_tool_types([
+            'name' => 'Test tool 2',
+            'description' => 'Bad example description',
+            'tooldomain' => 'badexample.com',
+            'baseurl' => 'https://badexample.com/i/am/?where=here',
+            'state' => LTI_TOOL_STATE_CONFIGURED
+        ]);
+
+        $records = lti_get_tools_by_domain('example.com', LTI_TOOL_STATE_CONFIGURED);
+        $this->assertCount(1, $records);
+        $this->assertEmpty(array_diff(
+            ['https://example.com/i/am/?where=here'],
+            array_column($records, 'baseurl')
+        ));
+    }
+
+    /**
+     * @covers ::lti_get_tools_by_domain()
+     *
+     * Test test_lti_get_tools_by_domain_restrict_types_category.
+     */
+    public function test_lti_get_tools_by_domain_restrict_types_category(): void {
+        $this->resetAfterTest();
+
+        $coursecat1 = $this->getDataGenerator()->create_category();
+        $coursecat2 = $this->getDataGenerator()->create_category();
+
+        $course1 = $this->getDataGenerator()->create_course(['category' => $coursecat1->id]);
+        $course2 = $this->getDataGenerator()->create_course(['category' => $coursecat2->id]);
+
+        /** @var \mod_lti_generator $ltigenerator */
+        $ltigenerator = $this->getDataGenerator()->get_plugin_generator('mod_lti');
+
+        // Create a tool type with domain restricting to a category1.
+        $ltigenerator->create_tool_types([
+            'name' => 'Test tool 1',
+            'description' => 'Good example description',
+            'tooldomain' => 'exampleone.com',
+            'baseurl' => 'https://exampleone.com/tool/1',
+            'state' => LTI_TOOL_STATE_CONFIGURED,
+            'lti_coursecategories' => $coursecat1->id
+        ]);
+
+        // Create another tool type using the same domain, restricted to category2.
+        $ltigenerator->create_tool_types([
+            'name' => 'Test tool 1',
+            'description' => 'Good example description',
+            'tooldomain' => 'exampleone.com',
+            'baseurl' => 'https://exampleone.com/tool/2',
+            'state' => LTI_TOOL_STATE_CONFIGURED,
+            'lti_coursecategories' => $coursecat2->id
+        ]);
+
+        // Create a tool type with domain restricting to a category2.
+        $ltigenerator->create_tool_types([
+            'name' => 'Test tool 2',
+            'description' => 'Good example description',
+            'tooldomain' => 'exampletwo.com',
+            'baseurl' => 'https://exampletwo.com/tool/3',
+            'state' => LTI_TOOL_STATE_CONFIGURED,
+            'lti_coursecategories' => $coursecat2->id
+        ]);
+
+        // Get tool types for domain 'exampleone' in course 1 and verify only the one result under course category 1 is included.
+        $records = lti_get_tools_by_domain('exampleone.com', LTI_TOOL_STATE_CONFIGURED, $course1->id);
+        $this->assertCount(1, $records);
+        $this->assertEmpty(array_diff(
+            ['https://exampleone.com/tool/1'],
+            array_column($records, 'baseurl')
+        ));
+
+        // Get tool types for domain 'exampleone' in course 2 and verify only the one result under course category 2 is included.
+        $records = lti_get_tools_by_domain('exampleone.com', LTI_TOOL_STATE_CONFIGURED, $course2->id);
+        $this->assertCount(1, $records);
+        $this->assertEmpty(array_diff(
+            ['https://exampleone.com/tool/2'],
+            array_column($records, 'baseurl')
+        ));
+
+        // Get tool types for domain 'exampletwo' in course 1 and verify that no results are found.
+        $records = lti_get_tools_by_domain('exampletwo.com', LTI_TOOL_STATE_CONFIGURED, $course1->id);
+        $this->assertCount(0, $records);
+    }
+
+    /**
      * Test lti_get_jwt_message_type_mapping().
      */
-    public function test_lti_get_jwt_message_type_mapping() {
+    public function test_lti_get_jwt_message_type_mapping(): void {
         $mapping = [
             'basic-lti-launch-request' => 'LtiResourceLinkRequest',
             'ContentItemSelectionRequest' => 'LtiDeepLinkingRequest',
             'LtiDeepLinkingResponse' => 'ContentItemSelection',
+            'LtiSubmissionReviewRequest' => 'LtiSubmissionReviewRequest'
         ];
 
         $this->assertEquals($mapping, lti_get_jwt_message_type_mapping());
@@ -626,7 +745,7 @@ class locallib_test extends mod_lti_testcase {
     /**
      * Test lti_get_jwt_claim_mapping()
      */
-    public function test_lti_get_jwt_claim_mapping() {
+    public function test_lti_get_jwt_claim_mapping(): void {
         $mapping = [
             'accept_copy_advice' => [
                 'suffix' => 'dl',
@@ -1005,15 +1124,21 @@ class locallib_test extends mod_lti_testcase {
                 'claim' => 'lis_result_sourcedid',
                 'isarray' => false
             ],
+            'for_user_id' => [
+                'suffix' => '',
+                'group' => 'for_user',
+                'claim' => 'user_id',
+                'isarray' => false
+            ],
         ];
-
-        $this->assertEquals($mapping, lti_get_jwt_claim_mapping());
+        $actual = lti_get_jwt_claim_mapping();
+        $this->assertEquals($mapping, $actual);
     }
 
     /**
      * Test lti_build_standard_message().
      */
-    public function test_lti_build_standard_message_institution_name_set() {
+    public function test_lti_build_standard_message_institution_name_set(): void {
         global $CFG;
 
         $this->resetAfterTest();
@@ -1041,7 +1166,7 @@ class locallib_test extends mod_lti_testcase {
     /**
      * Test lti_build_standard_message().
      */
-    public function test_lti_build_standard_message_institution_name_not_set() {
+    public function test_lti_build_standard_message_institution_name_not_set(): void {
         $this->resetAfterTest();
 
         $course   = $this->getDataGenerator()->create_course();
@@ -1065,7 +1190,7 @@ class locallib_test extends mod_lti_testcase {
     /**
      * Test lti_verify_jwt_signature().
      */
-    public function test_lti_verify_jwt_signature() {
+    public function test_lti_verify_jwt_signature(): void {
         $this->resetAfterTest();
 
         $this->setAdminUser();
@@ -1102,7 +1227,7 @@ MwIDAQAB
     /**
      * Test lti_verify_jwt_signature_jwk().
      */
-    public function test_lti_verify_jwt_signature_jwk() {
+    public function test_lti_verify_jwt_signature_jwk(): void {
         $this->resetAfterTest();
 
         $this->setAdminUser();
@@ -1115,7 +1240,7 @@ MwIDAQAB
         $type->baseurl = $this->getExternalTestFileUrl('/test.html');
 
         $config = new \stdClass();
-        $config->lti_publickeyset = dirname(__FILE__) . '/fixtures/test_keyset';
+        $config->lti_publickeyset = $this->getExternalTestFileUrl('/lti_keyset.json');
 
         $config->lti_keytype = LTI_JWK_KEYSET;
 
@@ -1142,7 +1267,7 @@ MwIDAQAB
     /**
      * Test lti_verify_jwt_signature().
      */
-    public function test_lti_verify_jwt_signature_with_lti2() {
+    public function test_lti_verify_jwt_signature_with_lti2(): void {
         $this->resetAfterTest();
 
         $this->setAdminUser();
@@ -1170,7 +1295,7 @@ MwIDAQAB
     /**
      * Test lti_verify_jwt_signature().
      */
-    public function test_lti_verify_jwt_signature_no_consumer_key() {
+    public function test_lti_verify_jwt_signature_no_consumer_key(): void {
         $this->resetAfterTest();
 
         $this->setAdminUser();
@@ -1193,7 +1318,7 @@ MwIDAQAB
     /**
      * Test lti_verify_jwt_signature().
      */
-    public function test_lti_verify_jwt_signature_no_public_key() {
+    public function test_lti_verify_jwt_signature_no_public_key(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
 
@@ -1216,7 +1341,7 @@ MwIDAQAB
     /**
      * Test lti_convert_content_items().
      */
-    public function test_lti_convert_content_items() {
+    public function test_lti_convert_content_items(): void {
         $contentitems = [];
         $contentitems[] = [
             'type' => 'ltiResourceLink',
@@ -1301,7 +1426,7 @@ MwIDAQAB
     /**
      * Test adding a single gradable item through content item.
      */
-    public function test_lti_tool_configuration_from_content_item_single_gradable() {
+    public function test_lti_tool_configuration_from_content_item_single_gradable(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
 
@@ -1339,12 +1464,105 @@ MwIDAQAB
         $this->assertEquals($contentitems[0]['lineItem']['tag'], $config->lineitemtag);
         $this->assertEquals($contentitems[0]['lineItem']['resourceId'], $config->lineitemresourceid);
         $this->assertEquals($contentitems[0]['lineItem']['scoreMaximum'], $config->grade_modgrade_point);
+        $this->assertEquals('', $config->lineitemsubreviewurl);
+        $this->assertEquals('', $config->lineitemsubreviewparams);
+    }
+
+    /**
+     * @covers ::lti_tool_configuration_from_content_item()
+     *
+     * Test adding a single gradable item through content item with an empty subreview url.
+     */
+    public function test_lti_tool_configuration_from_content_item_single_gradable_subreview_default_emptyurl(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $type = new \stdClass();
+        $type->name = "Test tool";
+        $type->baseurl = "http://example.com";
+        $config = new \stdClass();
+        $config->lti_acceptgrades = LTI_SETTING_DELEGATE;
+        $typeid = lti_add_type($type, $config);
+
+        $contentitems = [];
+        $contentitems[] = [
+            'type' => 'ltiResourceLink',
+            'url' => 'http://example.com/messages/launch',
+            'title' => 'Test title',
+            'lineItem' => [
+                'resourceId' => 'r12345',
+                'tag' => 'final',
+                'scoreMaximum' => 10.0,
+                'submissionReview' => [
+                    'url' => ''
+                ]
+            ],
+            'frame' => []
+        ];
+        $contentitemsjson13 = json_encode($contentitems);
+        $json11 = lti_convert_content_items($contentitemsjson13);
+
+        $config = lti_tool_configuration_from_content_item($typeid,
+                                                           'ContentItemSelection',
+                                                           $type->ltiversion,
+                                                           'ConsumerKey',
+                                                           $json11);
+
+        $this->assertEquals('DEFAULT', $config->lineitemsubreviewurl);
+        $this->assertEquals('', $config->lineitemsubreviewparams);
+    }
+
+    /**
+     * @covers ::lti_tool_configuration_from_content_item()
+     *
+     * Test adding a single gradable item through content item.
+     */
+    public function test_lti_tool_configuration_from_content_item_single_gradable_subreview_default(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $type = new \stdClass();
+        $type->name = "Test tool";
+        $type->baseurl = "http://example.com";
+        $config = new \stdClass();
+        $config->lti_acceptgrades = LTI_SETTING_DELEGATE;
+        $typeid = lti_add_type($type, $config);
+
+        $contentitems = [];
+        $contentitems[] = [
+            'type' => 'ltiResourceLink',
+            'url' => 'http://example.com/messages/launch',
+            'title' => 'Test title',
+            'lineItem' => [
+                'resourceId' => 'r12345',
+                'tag' => 'final',
+                'scoreMaximum' => 10.0,
+                'submissionReview' => []
+            ],
+            'frame' => []
+        ];
+        $contentitemsjson13 = json_encode($contentitems);
+        $json11 = lti_convert_content_items($contentitemsjson13);
+
+        $config = lti_tool_configuration_from_content_item($typeid,
+                                                           'ContentItemSelection',
+                                                           $type->ltiversion,
+                                                           'ConsumerKey',
+                                                           $json11);
+
+        $this->assertEquals($contentitems[0]['url'], $config->toolurl);
+        $this->assertEquals(LTI_SETTING_ALWAYS, $config->instructorchoiceacceptgrades);
+        $this->assertEquals($contentitems[0]['lineItem']['tag'], $config->lineitemtag);
+        $this->assertEquals($contentitems[0]['lineItem']['resourceId'], $config->lineitemresourceid);
+        $this->assertEquals($contentitems[0]['lineItem']['scoreMaximum'], $config->grade_modgrade_point);
+        $this->assertEquals('DEFAULT', $config->lineitemsubreviewurl);
+        $this->assertEquals('', $config->lineitemsubreviewparams);
     }
 
     /**
      * Test adding multiple gradable items through content item.
      */
-    public function test_lti_tool_configuration_from_content_item_multiple() {
+    public function test_lti_tool_configuration_from_content_item_multiple(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
 
@@ -1375,7 +1593,11 @@ MwIDAQAB
             'lineItem' => [
                 'resourceId' => 'r12345',
                 'tag' => 'final',
-                'scoreMaximum' => 10.0
+                'scoreMaximum' => 10.0,
+                'submissionReview' => [
+                    'url' => 'https://testsub.url',
+                    'custom' => ['a' => 'b']
+                ]
             ],
             'frame' => []
         ];
@@ -1397,12 +1619,14 @@ MwIDAQAB
         $this->assertEquals($contentitems[1]['lineItem']['tag'], $config->multiple[1]->lineitemtag);
         $this->assertEquals($contentitems[1]['lineItem']['resourceId'], $config->multiple[1]->lineitemresourceid);
         $this->assertEquals($contentitems[1]['lineItem']['scoreMaximum'], $config->multiple[1]->grade_modgrade_point);
+        $this->assertEquals($contentitems[1]['lineItem']['submissionReview']['url'], $config->multiple[1]->lineitemsubreviewurl);
+        $this->assertEquals("a=b", $config->multiple[1]->lineitemsubreviewparams);
     }
 
     /**
      * Test adding a single non gradable item through content item.
      */
-    public function test_lti_tool_configuration_from_content_item_single() {
+    public function test_lti_tool_configuration_from_content_item_single(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
 
@@ -1444,7 +1668,7 @@ MwIDAQAB
     /**
      * Test lti_sign_jwt().
      */
-    public function test_lti_sign_jwt() {
+    public function test_lti_sign_jwt(): void {
         $this->resetAfterTest();
 
         $this->setAdminUser();
@@ -1490,7 +1714,7 @@ MwIDAQAB
     /**
      * Test lti_convert_from_jwt()
      */
-    public function test_lti_convert_from_jwt() {
+    public function test_lti_convert_from_jwt(): void {
         $this->resetAfterTest();
 
         $this->setAdminUser();
@@ -1530,7 +1754,7 @@ MwIDAQAB
     /**
      * Test lti_get_permitted_service_scopes().
      */
-    public function test_lti_get_permitted_service_scopes() {
+    public function test_lti_get_permitted_service_scopes(): void {
         $this->resetAfterTest();
 
         $this->setAdminUser();
@@ -1561,7 +1785,7 @@ MwIDAQAB
     /**
      * Test get_tool_type_config().
      */
-    public function test_get_tool_type_config() {
+    public function test_get_tool_type_config(): void {
         $this->resetAfterTest();
 
         $this->setAdminUser();
@@ -1593,7 +1817,7 @@ MwIDAQAB
     /**
      * Test lti_new_access_token().
      */
-    public function test_lti_new_access_token() {
+    public function test_lti_new_access_token(): void {
         global $DB;
 
         $this->resetAfterTest();
@@ -1630,7 +1854,7 @@ MwIDAQAB
     /**
      * Test lti_build_login_request().
      */
-    public function test_lti_build_login_request() {
+    public function test_lti_build_login_request(): void {
         global $USER, $CFG;
 
         $this->resetAfterTest();
@@ -1649,20 +1873,39 @@ MwIDAQAB
         $config->typeid = 'some-type-id';
         $config->lti_toolurl = 'some-lti-tool-url';
 
-        $request = lti_build_login_request($course->id, $instance->id, $instance, $config, 'basic-lti-launch-request');
-
+        $request = lti_build_login_request($course->id, $instance->cmid, $instance, $config, 'basic-lti-launch-request');
         $this->assertEquals($CFG->wwwroot, $request['iss']);
         $this->assertEquals('http://some-lti-tool-url', $request['target_link_uri']);
         $this->assertEquals(123456789, $request['login_hint']);
-        $this->assertEquals($instance->id, $request['lti_message_hint']);
+        $this->assertTrue(strpos($request['lti_message_hint'], "\"cmid\":{$instance->cmid}") > 0);
+        $this->assertTrue(strpos($request['lti_message_hint'],  "\"launchid\":\"ltilaunch{$instance->id}_") > 0);
         $this->assertEquals('some-client-id', $request['client_id']);
         $this->assertEquals('some-type-id', $request['lti_deployment_id']);
     }
 
     /**
+     * @covers ::lti_get_launch_data()
+     *
+     * Test for_user is passed as parameter when specified.
+     */
+    public function test_lti_get_launch_data_with_for_user(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $config = new \stdClass();
+        $config->lti_organizationid = '';
+        $course = $this->getDataGenerator()->create_course();
+        $type = $this->create_type($config);
+        $link = $this->create_instance($type, $course);
+        $launchdata = lti_get_launch_data($link, '', '', 345);
+        $this->assertEquals($launchdata[1]['lti_message_type'], 'basic-lti-launch-request');
+        $this->assertEquals($launchdata[1]['for_user_id'], 345);
+    }
+
+    /**
      * Test default orgid is host if not specified in config (tool installed in earlier version of Moodle).
      */
-    public function test_lti_get_launch_data_default_organizationid_unset_usehost() {
+    public function test_lti_get_launch_data_default_organizationid_unset_usehost(): void {
         global $DB;
         $this->resetAfterTest();
         $this->setAdminUser();
@@ -1678,7 +1921,7 @@ MwIDAQAB
     /**
      * Test default org id is set to host when config is usehost.
      */
-    public function test_lti_get_launch_data_default_organizationid_set_usehost() {
+    public function test_lti_get_launch_data_default_organizationid_set_usehost(): void {
         global $DB;
         $this->resetAfterTest();
         $this->setAdminUser();
@@ -1695,7 +1938,7 @@ MwIDAQAB
     /**
      * Test default org id is set to site id when config is usesiteid.
      */
-    public function test_lti_get_launch_data_default_organizationid_set_usesiteid() {
+    public function test_lti_get_launch_data_default_organizationid_set_usesiteid(): void {
         global $DB;
         $this->resetAfterTest();
         $this->setAdminUser();
@@ -1712,7 +1955,7 @@ MwIDAQAB
     /**
      * Test orgid can be overridden in which case default is ignored.
      */
-    public function test_lti_get_launch_data_default_organizationid_orgid_override() {
+    public function test_lti_get_launch_data_default_organizationid_orgid_override(): void {
         global $DB;
         $this->resetAfterTest();
         $this->setAdminUser();
@@ -1726,7 +1969,7 @@ MwIDAQAB
         $this->assertEquals($launchdata[1]['tool_consumer_instance_guid'], 'overridden!');
     }
 
-    public function test_get_course_history() {
+    public function test_get_course_history(): void {
         global $DB;
         $this->resetAfterTest();
         $this->setAdminUser();
@@ -1756,7 +1999,7 @@ MwIDAQAB
      * @param null|string $switchedto the role to switch to, or false if not using the 'switch to' functionality.
      * @param string $expected the expected role name.
      */
-    public function test_lti_get_ims_role(bool $islti2, string $rolename, ?string $switchedto, string $expected) {
+    public function test_lti_get_ims_role(bool $islti2, string $rolename, ?string $switchedto, string $expected): void {
         global $DB;
         $this->resetAfterTest();
 
@@ -1845,7 +2088,7 @@ MwIDAQAB
     /**
      * Test lti_get_lti_types_and_proxies with no limit or offset.
      */
-    public function test_lti_get_lti_types_and_proxies_with_no_limit() {
+    public function test_lti_get_lti_types_and_proxies_with_no_limit(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
         $this->generate_tool_types_and_proxies(10);
@@ -1858,7 +2101,7 @@ MwIDAQAB
     /**
      * Test lti_get_lti_types_and_proxies with limits.
      */
-    public function test_lti_get_lti_types_and_proxies_with_limit() {
+    public function test_lti_get_lti_types_and_proxies_with_limit(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
         $this->generate_tool_types_and_proxies(10);
@@ -1885,7 +2128,7 @@ MwIDAQAB
     /**
      * Test lti_get_lti_types_and_proxies with limits and only fetching orphaned proxies.
      */
-    public function test_lti_get_lti_types_and_proxies_with_limit_and_orphaned_proxies() {
+    public function test_lti_get_lti_types_and_proxies_with_limit_and_orphaned_proxies(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
         $this->generate_tool_types_and_proxies(10, 5);
@@ -1912,7 +2155,7 @@ MwIDAQAB
     /**
      * Test lti_get_lti_types_and_proxies_count.
      */
-    public function test_lti_get_lti_types_and_proxies_count_with_no_filters() {
+    public function test_lti_get_lti_types_and_proxies_count_with_no_filters(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
         $this->generate_tool_types_and_proxies(10, 5);
@@ -1924,7 +2167,7 @@ MwIDAQAB
     /**
      * Test lti_get_lti_types_and_proxies_count only counting orphaned proxies.
      */
-    public function test_lti_get_lti_types_and_proxies_count_with_only_orphaned_proxies() {
+    public function test_lti_get_lti_types_and_proxies_count_with_only_orphaned_proxies(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
         $this->generate_tool_types_and_proxies(10, 5);
@@ -1936,7 +2179,7 @@ MwIDAQAB
     /**
      * Test lti_get_lti_types_and_proxies_count only matching tool type with toolproxyid.
      */
-    public function test_lti_get_lti_types_and_proxies_count_type_with_proxyid() {
+    public function test_lti_get_lti_types_and_proxies_count_type_with_proxyid(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
         ['proxies' => $proxies, 'types' => $types] = $this->generate_tool_types_and_proxies(10, 5);
@@ -1950,7 +2193,7 @@ MwIDAQAB
      *
      * @covers ::lti_load_cartridge()
      */
-    public function test_empty_reponse_lti_load_cartridge() {
+    public function test_empty_reponse_lti_load_cartridge(): void {
         // Mock the curl response to empty string, this is hardly
         // reproducible in real life (only Windows + GHA).
         \curl::mock_response('');
@@ -2020,5 +2263,119 @@ MwIDAQAB
         }
 
         return ['proxies' => $proxies, 'types' => $types];
+    }
+
+    /**
+     * Test for lti_get_lti_types_by_course.
+     *
+     * Note: This includes verification of the broken legacy behaviour in which the inclusion of course and site tools could be
+     * controlled independently, based on the capabilities 'mod/lti:addmanualinstance' (to include course tools) and
+     * 'mod/lti:addpreconfiguredinstance' (to include site tools). This behaviour is deprecated in 4.3 and all preconfigured tools
+     * are controlled by the single capability 'mod/lti:addpreconfiguredinstance'.
+     *
+     * @covers ::lti_get_lti_types_by_course()
+     * @return void
+     */
+    public function test_lti_get_lti_types_by_course(): void {
+        $this->resetAfterTest();
+
+        global $DB;
+        $coursecat1 = $this->getDataGenerator()->create_category();
+        $coursecat2 = $this->getDataGenerator()->create_category();
+        $course = $this->getDataGenerator()->create_course(['category' => $coursecat1->id]);
+        $course2 = $this->getDataGenerator()->create_course(['category' => $coursecat2->id]);
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $teacher2 = $this->getDataGenerator()->create_and_enrol($course2, 'editingteacher');
+
+        // Create the following tool types for testing:
+        // - Site tool configured as "Do not show" (LTI_COURSEVISIBLE_NO).
+        // - Site tool configured as "Show as a preconfigured tool only" (LTI_COURSEVISIBLE_PRECONFIGURED).
+        // - Site tool configured as "Show as a preconfigured tool and in the activity chooser" (LTI_COURSEVISIBLE_ACTIVITYCHOOSER).
+        // - Course tool which, by default, is configured as LTI_COURSEVISIBLE_ACTIVITYCHOOSER).
+        // - Site tool configured to "Show as a preconfigured tool and in the activity chooser" but restricted to a category.
+
+        /** @var \mod_lti_generator $ltigenerator */
+        $ltigenerator = $this->getDataGenerator()->get_plugin_generator('mod_lti');
+        $ltigenerator->create_tool_types([
+            'name' => 'site tool do not show',
+            'baseurl' => 'http://example.com/tool/1',
+            'coursevisible' => LTI_COURSEVISIBLE_NO,
+            'state' => LTI_TOOL_STATE_CONFIGURED
+        ]);
+        $ltigenerator->create_tool_types([
+            'name' => 'site tool preconfigured only',
+            'baseurl' => 'http://example.com/tool/2',
+            'coursevisible' => LTI_COURSEVISIBLE_PRECONFIGURED,
+            'state' => LTI_TOOL_STATE_CONFIGURED
+        ]);
+        $ltigenerator->create_tool_types([
+            'name' => 'site tool preconfigured and activity chooser',
+            'baseurl' => 'http://example.com/tool/3',
+            'coursevisible' => LTI_COURSEVISIBLE_ACTIVITYCHOOSER,
+            'state' => LTI_TOOL_STATE_CONFIGURED
+        ]);
+        $ltigenerator->create_course_tool_types([
+            'name' => 'course tool preconfigured and activity chooser',
+            'baseurl' => 'http://example.com/tool/4',
+            'course' => $course->id
+        ]);
+        $ltigenerator->create_tool_types([
+            'name' => 'site tool preconfigured and activity chooser, restricted to category 2',
+            'baseurl' => 'http://example.com/tool/5',
+            'coursevisible' => LTI_COURSEVISIBLE_ACTIVITYCHOOSER,
+            'state' => LTI_TOOL_STATE_CONFIGURED,
+            'lti_coursecategories' => $coursecat2->id
+        ]);
+
+        $this->setUser($teacher); // Important: this deprecated method depends on the global user for cap checks.
+
+        // Request using the default 'coursevisible' param will include all tools except the one configured as "Do not show".
+        $coursetooltypes = lti_get_lti_types_by_course($course->id);
+        $this->assertDebuggingCalled();
+        $this->assertCount(3, $coursetooltypes);
+        $this->assertEmpty(array_diff(
+            ['http://example.com/tool/2', 'http://example.com/tool/3', 'http://example.com/tool/4'],
+            array_column($coursetooltypes, 'baseurl')
+        ));
+
+        // Request for only those tools configured to show in the activity chooser for the teacher.
+        $coursetooltypes = lti_get_lti_types_by_course($course->id, [LTI_COURSEVISIBLE_ACTIVITYCHOOSER]);
+        $this->assertDebuggingCalled();
+        $this->assertCount(2, $coursetooltypes);
+        $this->assertEmpty(array_diff(
+            ['http://example.com/tool/3', 'http://example.com/tool/4'],
+            array_column($coursetooltypes, 'baseurl')
+        ));
+
+        // Request for only those tools configured to show as a preconfigured tool for the teacher.
+        $coursetooltypes = lti_get_lti_types_by_course($course->id, [LTI_COURSEVISIBLE_PRECONFIGURED]);
+        $this->assertDebuggingCalled();
+        $this->assertCount(1, $coursetooltypes);
+        $this->assertEmpty(array_diff(
+            ['http://example.com/tool/2'],
+            array_column($coursetooltypes, 'baseurl')
+        ));
+
+        // Request for teacher2 in course2 (course category 2).
+        $this->setUser($teacher2);
+        $coursetooltypes = lti_get_lti_types_by_course($course2->id);
+        $this->assertDebuggingCalled();
+        $this->assertCount(3, $coursetooltypes);
+        $this->assertEmpty(array_diff(
+            ['http://example.com/tool/2', 'http://example.com/tool/3', 'http://example.com/tool/5'],
+            array_column($coursetooltypes, 'baseurl')
+        ));
+
+        // Request for a teacher who cannot use preconfigured tools in the course.
+        // No tools are available.
+        $this->setUser($teacher);
+        $teacherrole = $DB->get_record('role', array('shortname' => 'editingteacher'));
+        assign_capability('mod/lti:addpreconfiguredinstance', CAP_PROHIBIT, $teacherrole->id,
+            \core\context\course::instance($course->id));
+        $coursetooltypes = lti_get_lti_types_by_course($course->id);
+        $this->assertDebuggingCalled();
+        $this->assertCount(0, $coursetooltypes);
+        $this->unassignUserCapability('mod/lti:addpreconfiguredinstance', (\core\context\course::instance($course->id))->id,
+            $teacherrole->id);
     }
 }

@@ -27,7 +27,7 @@ class condition_test extends \advanced_testcase {
     /**
      * Tests constructing and using grade condition.
      */
-    public function test_usage() {
+    public function test_usage(): void {
         global $USER, $CFG;
         require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
@@ -77,7 +77,7 @@ class condition_test extends \advanced_testcase {
         $this->assertFalse($cond->is_available(false, $info, true, $user->id));
         $information = $cond->get_description(false, false, $info);
         $information = \core_availability\info::format_info($information, $course);
-        $this->assertMatchesRegularExpression('~achieve a required score.*Test!~', $information);
+        $this->assertMatchesRegularExpression('~achieve higher than.*Test!~', $information);
         $this->assertTrue($cond->is_available(true, $info, true, $user->id));
 
         // Min grade (success).
@@ -95,7 +95,7 @@ class condition_test extends \advanced_testcase {
         $this->assertFalse($cond->is_available(false, $info, true, $user->id));
         $information = $cond->get_description(false, false, $info);
         $information = \core_availability\info::format_info($information, $course);
-        $this->assertMatchesRegularExpression('~get an appropriate score.*Test!~', $information);
+        $this->assertMatchesRegularExpression('~achieve lower than a certain score in.*Test!~', $information);
         $this->assertTrue($cond->is_available(true, $info, true, $user->id));
 
         // Max grade (success).
@@ -113,7 +113,7 @@ class condition_test extends \advanced_testcase {
         $this->assertFalse($cond->is_available(false, $info, true, $user->id));
         $information = $cond->get_description(false, false, $info);
         $information = \core_availability\info::format_info($information, $course);
-        $this->assertMatchesRegularExpression('~get a particular score.*Test!~', $information);
+        $this->assertMatchesRegularExpression('~achieve a score within a certain range.*Test!~', $information);
         $this->assertTrue($cond->is_available(true, $info, true, $user->id));
 
         // Still fail (other end).
@@ -141,7 +141,7 @@ class condition_test extends \advanced_testcase {
      * Tests the constructor including error conditions. Also tests the
      * string conversion feature (intended for debugging only).
      */
-    public function test_constructor() {
+    public function test_constructor(): void {
         // No parameters.
         $structure = new \stdClass();
         try {
@@ -205,7 +205,7 @@ class condition_test extends \advanced_testcase {
     /**
      * Tests the save() function.
      */
-    public function test_save() {
+    public function test_save(): void {
         $structure = (object)array('id' => 19);
         $cond = new condition($structure);
         $structure->type = 'grade';
@@ -235,7 +235,7 @@ class condition_test extends \advanced_testcase {
     /**
      * Tests the update_dependency_id() function.
      */
-    public function test_update_dependency_id() {
+    public function test_update_dependency_id(): void {
         $cond = new condition((object)array('id' => 123));
         $this->assertFalse($cond->update_dependency_id('frogs', 123, 456));
         $this->assertFalse($cond->update_dependency_id('grade_items', 12, 34));

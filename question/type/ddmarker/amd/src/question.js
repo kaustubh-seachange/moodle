@@ -26,13 +26,15 @@ define([
     'core/dragdrop',
     'qtype_ddmarker/shapes',
     'core/key_codes',
-    'core_form/changechecker'
+    'core_form/changechecker',
+    'core_filters/events',
 ], function(
     $,
     dragDrop,
     Shapes,
     keys,
-    FormChangeChecker
+    FormChangeChecker,
+    filterEvent
 ) {
 
     "use strict";
@@ -57,9 +59,11 @@ define([
         if (readOnly) {
             this.getRoot().addClass('qtype_ddmarker-readonly');
         }
-        thisQ.cloneDrags();
-        thisQ.repositionDrags();
-        thisQ.drawDropzones();
+        thisQ.allImagesLoaded = false;
+        thisQ.getNotYetLoadedImages().one('load', function() {
+            thisQ.waitForAllImagesToBeLoaded();
+        });
+        thisQ.waitForAllImagesToBeLoaded();
     }
 
     /**
@@ -147,13 +151,17 @@ define([
 
         root.find('input.choices').each(function(key, input) {
             var choiceNo = thisQ.getChoiceNoFromElement(input),
-                coords = thisQ.getCoords(input);
-            if (coords.length) {
+                imageCoords = thisQ.getImageCoords(input);
+            if (imageCoords.length) {
                 var drag = thisQ.getRoot().find('.draghomes' + ' span.marker' + '.choice' + choiceNo).not('.dragplaceholder');
                 drag.remove();
-                for (var i = 0; i < coords.length; i++) {
+                for (var i = 0; i < imageCoords.length; i++) {
                     var dragInDrop = drag.clone();
-                    dragInDrop.data('pagex', coords[i].x).data('pagey', coords[i].y);
+                    // Convert image coords to screen coords.
+                    const screenCoords = thisQ.convertToWindowXY(imageCoords[i]);
+                    dragInDrop.data('pagex', screenCoords.x).data('pagey', screenCoords.y);
+                    // Save image coords to the drag item so we can use it later.
+                    dragInDrop.data('imageCoords', imageCoords[i]);
                     // We always save the coordinates in the 1:1 ratio.
                     // So we need to set the scale ratio to 1 for the initial load.
                     dragInDrop.data('scaleRatio', 1);
@@ -214,18 +222,18 @@ define([
      * drags should be shown.
      *
      * @param {jQuery} inputNode
-     * @returns {Point[]} coordinates of however many copies of the drag item should be shown.
+     * @returns {Point[]} image coordinates of however many copies of the drag item should be shown.
      */
-    DragDropMarkersQuestion.prototype.getCoords = function(inputNode) {
-        var coords = [],
+    DragDropMarkersQuestion.prototype.getImageCoords = function(inputNode) {
+        var imageCoords = [],
             val = $(inputNode).val();
         if (val !== '') {
             var coordsStrings = val.split(';');
             for (var i = 0; i < coordsStrings.length; i++) {
-                coords[i] = this.convertToWindowXY(Shapes.Point.parse(coordsStrings[i]));
+                imageCoords[i] = Shapes.Point.parse(coordsStrings[i]);
             }
         }
-        return coords;
+        return imageCoords;
     };
 
     /**
@@ -328,7 +336,12 @@ define([
         if (this.coordsInBgImg(dragXY)) {
             this.sendDragToDrop(dragged, true);
             placed = true;
-
+            // Since we already move the drag item to new position.
+            // Remove the image coords if this drag item have it.
+            // We will get the new image coords for this drag item in saveCoordsForChoice.
+            if (dragged.data('imageCoords')) {
+                dragged.data('imageCoords', null);
+            }
             // It seems that the dragdrop sometimes leaves the drag
             // one pixel out of position. Put it in exactly the right place.
             var bgImgXY = this.convertToBgImgXY(dragXY);
@@ -351,15 +364,15 @@ define([
      * @param {Number} choiceNo which copy of the choice this was.
      */
     DragDropMarkersQuestion.prototype.saveCoordsForChoice = function(choiceNo) {
-        var coords = [],
-            items = this.getRoot().find('div.droparea span.marker.choice' + choiceNo),
+        let imageCoords = [];
+        var items = this.getRoot().find('div.droparea span.marker.choice' + choiceNo),
             thiQ = this,
             bgRatio = this.bgRatio();
 
         if (items.length) {
             items.each(function() {
                 var drag = $(this);
-                if (!drag.hasClass('beingdragged')) {
+                if (!drag.hasClass('beingdragged') && !drag.data('imageCoords')) {
                     if (drag.data('scaleRatio') !== bgRatio) {
                         // The scale ratio for the draggable item was changed. We need to update that.
                         drag.data('pagex', drag.offset().left).data('pagey', drag.offset().top);
@@ -368,13 +381,15 @@ define([
                     if (thiQ.coordsInBgImg(dragXY)) {
                         var bgImgXY = thiQ.convertToBgImgXY(dragXY);
                         bgImgXY = new Shapes.Point(bgImgXY.x / bgRatio, bgImgXY.y / bgRatio);
-                        coords[coords.length] = bgImgXY;
+                        imageCoords[imageCoords.length] = bgImgXY;
                     }
+                } else if (drag.data('imageCoords')) {
+                    imageCoords[imageCoords.length] = drag.data('imageCoords');
                 }
             });
         }
 
-        this.getRoot().find('input.choice' + choiceNo).val(coords.join(';'));
+        this.getRoot().find('input.choice' + choiceNo).val(imageCoords.join(';'));
         if (this.isQuestionInteracted()) {
             // The user has interacted with the draggable items. We need to mark the form as dirty.
             questionManager.handleFormDirty();
@@ -735,6 +750,121 @@ define([
      */
     DragDropMarkersQuestion.prototype.isInfiniteDrag = function(drag) {
         return drag.hasClass('infinite');
+    };
+
+    /**
+     * Waits until all images are loaded before calling setupQuestion().
+     *
+     * This function is called from the onLoad of each image, and also polls with
+     * a time-out, because image on-loads are allegedly unreliable.
+     */
+    DragDropMarkersQuestion.prototype.waitForAllImagesToBeLoaded = function() {
+        var thisQ = this;
+        // This method may get called multiple times (via image on-loads or timeouts.
+        // If we are already done, don't do it again.
+        if (this.allImagesLoaded) {
+            return;
+        }
+
+        // Clear any current timeout, if set.
+        if (this.imageLoadingTimeoutId !== null) {
+            clearTimeout(this.imageLoadingTimeoutId);
+        }
+
+        // If we have not yet loaded all images, set a timeout to
+        // call ourselves again, since apparently images on-load
+        // events are flakey.
+        if (this.getNotYetLoadedImages().length > 0) {
+            this.imageLoadingTimeoutId = setTimeout(function() {
+                this.waitForAllImagesToBeLoaded();
+            }, 100);
+            return;
+        }
+
+        // We now have all images. Carry on, but only after giving the layout a chance to settle down.
+        this.allImagesLoaded = true;
+        this.cloneDrags();
+        this.repositionDrags();
+        this.drawDropzones();
+        // Wait for all dynamic content loaded by filter to be completed.
+        document.addEventListener(filterEvent.eventTypes.filterContentRenderingComplete, (elements) => {
+            elements.detail.nodes.forEach((element) => {
+                thisQ.changeAllMakerToFilteredContent(element);
+            });
+        });
+    };
+
+    /**
+     * Change all the maker related to the item that has been changed by filter to correct size and content.
+     *
+     *  @param {object} filteredElement the element has been modified by filter.
+     */
+    DragDropMarkersQuestion.prototype.changeAllMakerToFilteredContent = function(filteredElement) {
+        let currentFilteredItem = $(filteredElement);
+        const parentIsMarker = currentFilteredItem.parent().closest('span.marker');
+        const isMarker = currentFilteredItem.hasClass('marker');
+        const root = this.getRoot();
+        // The filtered element or parent element should a drag or drop item.
+        if (!parentIsMarker && !isMarker) {
+            return;
+        }
+        if (parentIsMarker) {
+            currentFilteredItem = currentFilteredItem.parent().closest('span.marker');
+        }
+        if (root.find(currentFilteredItem).length <= 0) {
+            // If the maker doesn't belong to this question
+            // In case we have multiple questions in the same page.
+            return;
+        }
+        const dragNo = this.getDragNo(currentFilteredItem);
+        const choiceNo = this.getChoiceNoFromElement(currentFilteredItem);
+        const listOfContainerToBeModifed = [
+            'div.draghomes .marker:not(.dragplaceholder).dragno' + dragNo + '.choice' + choiceNo,
+            'div.droparea .marker:not(.dragplaceholder).dragno' + dragNo + '.choice' + choiceNo,
+            'div.draghomes .marker:not(.dragplaceholder).infinite.choice' + choiceNo,
+            'div.droparea .marker:not(.dragplaceholder).infinite.choice' + choiceNo
+        ];
+        let listOfModifiedDragDrop = [];
+        // We want to keep all the handler and event for filtered item, so using clone is the only choice.
+        const filteredDragDropClone = currentFilteredItem.clone();
+        listOfContainerToBeModifed.forEach(function(selector) {
+            root.find(selector).each(function(i, node) {
+                const originalClass = $(node).attr('class');
+                const originalStyle = $(node).attr('style');
+                // Replace the class and style of the maker we want to replace for the clone.
+                filteredDragDropClone.attr('class', originalClass);
+                filteredDragDropClone.attr('style', originalStyle);
+                // Add event for the clone.
+                questionManager.addEventHandlersToMarker(filteredDragDropClone);
+                // Insert into DOM.
+                $(node).before(filteredDragDropClone);
+                listOfModifiedDragDrop.push(node);
+            });
+        });
+        listOfModifiedDragDrop.forEach(function(node) {
+            $(node).remove();
+        });
+    };
+
+    /**
+     * Get any of the images in the drag-drop area that are not yet fully loaded.
+     *
+     * @returns {jQuery} those images.
+     */
+    DragDropMarkersQuestion.prototype.getNotYetLoadedImages = function() {
+        return this.getRoot().find('.ddmarker img.dropbackground').not(function(i, imgNode) {
+            return this.imageIsLoaded(imgNode);
+        });
+    };
+
+    /**
+     * Check if an image has loaded without errors.
+     *
+     * @param {HTMLImageElement} imgElement an image.
+     * @returns {boolean} true if this image has loaded without errors.
+     */
+    DragDropMarkersQuestion.prototype.imageIsLoaded = function(imgElement) {
+        return imgElement.complete && imgElement.naturalHeight !== 0;
     };
 
     /**

@@ -23,6 +23,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+use core_question\output\question_version_info;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -36,29 +37,12 @@ defined('MOODLE_INTERNAL') || die();
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class core_question_renderer extends plugin_renderer_base {
-    public function get_page() {
-        return $this->page;
-    }
 
     /**
-     * Render an icon, optionally with the word 'Preview' beside it, to preview
-     * a given question.
-     * @param int $questionid the id of the question to be previewed.
-     * @param context $context the context in which the preview is happening.
-     *      Must be a course or category context.
-     * @param bool $showlabel if true, show the word 'Preview' after the icon.
-     *      If false, just show the icon.
      * @deprecated since Moodle 4.0
-     * @see qbank_previewquestion\output\renderer
-     * @todo Final deprecation on Moodle 4.4 MDL-72438
      */
-    public function question_preview_link($questionid, context $context, $showlabel) {
-         debugging('Function question_preview_link() has been deprecated and moved to qbank_previewquestion plugin,
-         Please use qbank_previewquestion renderer.', DEBUG_DEVELOPER);
-
-        return $this->page->get_renderer('qbank_previewquestion')->question_preview_link(
-                $questionid, $context, $showlabel
-        );
+    public function question_preview_link() {
+        throw new coding_exception(__FUNCTION__ . '() has been removed.');
     }
 
     /**
@@ -79,6 +63,12 @@ class core_question_renderer extends plugin_renderer_base {
      */
     public function question(question_attempt $qa, qbehaviour_renderer $behaviouroutput,
             qtype_renderer $qtoutput, question_display_options $options, $number) {
+
+        // If not already set, record the questionidentifier.
+        $options = clone($options);
+        if (!$options->has_question_identifier()) {
+            $options->questionidentifier = $this->question_number_text($number);
+        }
 
         $output = '';
         $output .= html_writer::start_tag('div', array(
@@ -139,6 +129,9 @@ class core_question_renderer extends plugin_renderer_base {
         $output .= $this->mark_summary($qa, $behaviouroutput, $options);
         $output .= $this->question_flag($qa, $options->flags);
         $output .= $this->edit_question_link($qa, $options);
+        if ($options->versioninfo) {
+            $output .= $this->render(new question_version_info($qa->get_question(), true));
+        }
         return $output;
     }
 
@@ -149,17 +142,36 @@ class core_question_renderer extends plugin_renderer_base {
      * @return HTML fragment.
      */
     protected function number($number) {
-        if (trim($number) === '') {
+        if (trim($number ?? '') === '') {
             return '';
         }
-        $numbertext = '';
         if (trim($number) === 'i') {
             $numbertext = get_string('information', 'question');
         } else {
             $numbertext = get_string('questionx', 'question',
-                    html_writer::tag('span', $number, array('class' => 'qno')));
+                    html_writer::tag('span', s($number), array('class' => 'qno')));
         }
         return html_writer::tag('h3', $numbertext, array('class' => 'no'));
+    }
+
+    /**
+     * Get the question number as a string.
+     *
+     * @param string|null $number e.g. '123' or 'i'. null or '' means do not display anything number-related.
+     * @return string e.g. 'Question 123' or 'Information' or ''.
+     */
+    protected function question_number_text(?string $number): string {
+        $number = $number ?? '';
+        // Trim the question number of whitespace, including &nbsp;.
+        $trimmed = trim(html_entity_decode($number), " \n\r\t\v\x00\xC2\xA0");
+        if ($trimmed === '') {
+            return '';
+        }
+        if (trim($number) === 'i') {
+            return get_string('information', 'question');
+        } else {
+            return get_string('questionx', 'question', s($number));
+        }
     }
 
     /**

@@ -19,16 +19,14 @@ declare(strict_types=1);
 namespace core_reportbuilder\table;
 
 use action_menu;
+use action_menu_filler;
 use core_table\local\filter\filterset;
 use html_writer;
 use moodle_exception;
 use stdClass;
-use core_reportbuilder\manager;
+use core_reportbuilder\{manager, system_report};
 use core_reportbuilder\local\models\report;
-use core_reportbuilder\local\report\action;
 use core_reportbuilder\local\report\column;
-
-defined('MOODLE_INTERNAL') || die;
 
 /**
  * System report dynamic table class
@@ -38,6 +36,9 @@ defined('MOODLE_INTERNAL') || die;
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class system_report_table extends base_report_table {
+
+    /** @var system_report $report */
+    protected $report;
 
     /** @var string Unique ID prefix for the table */
     private const UNIQUEID_PREFIX = 'system-report-table-';
@@ -72,10 +73,16 @@ class system_report_table extends base_report_table {
      * @param array $parameters
      */
     private function load_report_instance(int $reportid, array $parameters): void {
+        global $PAGE;
+
         $this->persistent = new report($reportid);
         $this->report = manager::get_report_from_persistent($this->persistent, $parameters);
 
+        // TODO: can probably be removed pending MDL-72974.
+        $PAGE->set_context($this->persistent->get_context());
+
         $fields = $this->report->get_base_fields();
+        $groupby = [];
         $maintable = $this->report->get_main_table();
         $maintablealias = $this->report->get_main_table_alias();
         $joins = $this->report->get_joins();
@@ -89,13 +96,30 @@ class system_report_table extends base_report_table {
         $this->is_downloading($parameters['download'] ?? null, $this->report->get_downloadfilename());
 
         // Retrieve all report columns. If we are downloading the report, remove as required.
-        $columns = $this->report->get_columns();
+        $columns = $this->report->get_active_columns();
         if ($this->is_downloading()) {
             $columns = array_diff_key($columns,
                 array_flip($this->report->get_exclude_columns_for_download()));
         }
 
+        // If we are aggregating any columns, we should group by the remaining ones.
+        $aggregatedcolumns = array_filter($columns, static function(column $column): bool {
+            return !empty($column->get_aggregation());
+        });
+
+        $hasaggregatedcolumns = !empty($aggregatedcolumns);
+        if ($hasaggregatedcolumns) {
+            $groupby = $fields;
+        }
+
         $columnheaders = $columnsattributes = [];
+
+        // Check whether report has checkbox toggle defined, note that select all is excluded during download.
+        if (($checkbox = $this->report->get_checkbox_toggleall(true)) && !$this->is_downloading()) {
+            $columnheaders['selectall'] = $PAGE->get_renderer('core')->render($checkbox);
+            $this->no_sorting('selectall');
+        }
+
         $columnindex = 1;
         foreach ($columns as $identifier => $column) {
             $column->set_index($columnindex++);
@@ -105,6 +129,11 @@ class system_report_table extends base_report_table {
             // Specify whether column should behave as a user fullname column unless the column has a custom title set.
             if (preg_match('/^user:fullname.*$/', $column->get_unique_identifier()) && !$column->has_custom_title()) {
                 $this->userfullnamecolumns[] = $column->get_column_alias();
+            }
+
+            // We need to determine for each column whether we should group by its fields, to support aggregation.
+            if ($hasaggregatedcolumns && empty($column->get_aggregation())) {
+                $groupby = array_merge($groupby, $column->get_groupby_sql());
             }
 
             // Add each columns fields, joins and params to our report.
@@ -148,7 +177,7 @@ class system_report_table extends base_report_table {
 
         // Initialise table SQL properties.
         $fieldsql = implode(', ', $fields);
-        $this->init_sql($fieldsql, "{{$maintable}} {$maintablealias}", $joins, $where, $params);
+        $this->init_sql($fieldsql, "{{$maintable}} {$maintablealias}", $joins, $where, $params, $groupby);
     }
 
     /**
@@ -194,6 +223,8 @@ class system_report_table extends base_report_table {
      * @return array
      */
     public function format_row($row) {
+        global $PAGE;
+
         $this->report->row_callback((object) $row);
 
         // Walk over the row, and for any key that matches one of our column aliases, call that columns format method.
@@ -205,6 +236,12 @@ class system_report_table extends base_report_table {
             }
         });
 
+        // Check whether report has checkbox toggle defined.
+        if ($checkbox = $this->report->get_checkbox_toggleall(false, (object) $row)) {
+            $row['selectall'] = $PAGE->get_renderer('core')->render($checkbox);
+        }
+
+        // Now check for any actions.
         if ($this->report->has_actions()) {
             $row['actions'] = $this->format_row_actions((object) $row);
         }
@@ -223,9 +260,33 @@ class system_report_table extends base_report_table {
 
         $menu = new action_menu();
         $menu->set_menu_trigger($OUTPUT->pix_icon('a/setting', get_string('actions', 'core_reportbuilder')));
-        foreach ($this->report->get_actions() as $action) {
-            // Ensure the action link can be displayed for the current row.
-            $actionlink = $action->get_action_link($row);
+
+        $actions = array_filter($this->report->get_actions(), function($action) use ($row) {
+            // Only return dividers and action items who can be displayed for current users.
+            return $action instanceof action_menu_filler || $action->get_action_link($row);
+        });
+
+        $totalactions = count($actions);
+        $actionvalues = array_values($actions);
+        foreach ($actionvalues as $position => $action) {
+            if ($action instanceof action_menu_filler) {
+                $ispreviousdivider = array_key_exists($position - 1, $actionvalues) &&
+                    ($actionvalues[$position - 1] instanceof action_menu_filler);
+                $isnextdivider = array_key_exists($position + 1, $actionvalues) &&
+                    ($actionvalues[$position + 1] instanceof action_menu_filler);
+                $isfirstdivider = ($position === 0);
+                $islastdivider = ($position === $totalactions - 1);
+
+                // Avoid add divider at last/first position and having multiple fillers in a row.
+                if ($ispreviousdivider || $isnextdivider || $isfirstdivider || $islastdivider) {
+                    continue;
+                }
+                $actionlink = $action;
+            } else {
+                // Ensure the action link can be displayed for the current row.
+                $actionlink = $action->get_action_link($row);
+            }
+
             if ($actionlink) {
                 $menu->add($actionlink);
             }

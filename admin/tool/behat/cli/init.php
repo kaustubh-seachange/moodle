@@ -49,10 +49,11 @@ list($options, $unrecognized) = cli_get_params(
         'torun'    => 0,
         'optimize-runs' => '',
         'add-core-features-to-theme' => false,
-        'axe'      => false,
+        'axe'      => null,
         'disable-composer' => false,
         'composer-upgrade' => true,
         'composer-self-update' => true,
+        'scss-deprecations' => false,
     ),
     array(
         'j' => 'parallel',
@@ -69,7 +70,7 @@ Behat utilities to initialise behat tests
 
 Usage:
   php init.php      [--parallel=value [--maxruns=value] [--fromrun=value --torun=value]]
-                    [--axe] [-o | --optimize-runs] [-a | --add-core-features-to-theme]
+                    [--no-axe] [--scss-deprecations] [-o | --optimize-runs] [-a | --add-core-features-to-theme]
                     [--no-composer-self-update] [--no-composer-upgrade]
                     [--disable-composer]
                     [--help]
@@ -79,7 +80,8 @@ Options:
 -m, --maxruns       Max parallel processes to be executed at one time
 --fromrun           Execute run starting from (Used for parallel runs on different vms)
 --torun             Execute run till (Used for parallel runs on different vms)
---axe               Include axe accessibility tests
+--no-axe            Disable axe accessibility tests.
+--scss-deprecations Enable SCSS deprecation checks.
 
 -o, --optimize-runs
                     Split features with specified tags in all parallel runs.
@@ -102,12 +104,18 @@ Options:
 Example from Moodle root directory:
 \$ php admin/tool/behat/cli/init.php --parallel=2
 
-More info in http://docs.moodle.org/dev/Acceptance_testing#Running_tests
+More info in https://moodledev.io/general/development/tools/behat/running
 ";
 
 if (!empty($options['help'])) {
     echo $help;
     exit(0);
+}
+
+if ($options['axe']) {
+    echo "Axe accessibility tests are enabled by default, to disable them, use the --no-axe option.\n";
+} else if ($options['axe'] === false) {
+    echo "Axe accessibility tests have been disabled.\n";
 }
 
 // Check which util file to call.
@@ -118,21 +126,18 @@ if ($options['parallel'] && $options['parallel'] > 1) {
     $utilfile = 'util.php';
     // Sanitize all input options, so they can be passed to util.
     foreach ($options as $option => $value) {
-        if ($value) {
-            $commandoptions .= " --$option=\"$value\"";
-        }
+        $commandoptions .= behat_get_command_flags($option, $value);
     }
 } else {
     // Only sanitize options for single run.
     $cmdoptionsforsinglerun = [
         'add-core-features-to-theme',
         'axe',
+        'scss-deprecations',
     ];
 
     foreach ($cmdoptionsforsinglerun as $option) {
-        if (!empty($options[$option])) {
-            $commandoptions .= " --$option='$options[$option]'";
-        }
+        $commandoptions .= behat_get_command_flags($option, $options[$option]);
     }
 }
 

@@ -80,6 +80,10 @@ class primary extends view {
             $this->add($node->text, $node->action(), self::TYPE_SITE_ADMIN, null, 'siteadminnode', $node->icon);
         }
 
+        // Allow plugins to add nodes to the primary navigation.
+        $hook = new \core\hook\navigation\primary_extend($this);
+        \core\di::get(\core\hook\manager::class)->dispatch($hook);
+
         // Search and set the active node.
         $this->set_active_node();
         $this->initialised = true;
@@ -161,7 +165,7 @@ class primary extends view {
             if ($node->key && ($activekey === $node->key)) {
                 return $node;
             }
-        } else if ($node->check_if_active(URL_MATCH_BASE)) {
+        } else if ($node->check_if_active()) {
             return $node;
         }
 

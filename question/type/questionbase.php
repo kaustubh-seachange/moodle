@@ -41,6 +41,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+use core_question\output\question_version_info;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -88,7 +89,7 @@ abstract class question_definition {
     /** @var integer question test format. */
     public $generalfeedbackformat;
 
-    /** @var number what this quetsion is marked out of, by default. */
+    /** @var float what this quetsion is marked out of, by default. */
     public $defaultmark = 1;
 
     /** @var integer How many question numbers this question consumes. */
@@ -130,6 +131,9 @@ abstract class question_definition {
     /** @var int Bank entry id for the question */
     public $questionbankentryid;
 
+    /** @var ?int The latest version of the question. null if we haven't checked yet. */
+    protected $latestversion = null;
+
     /**
      * @var array of array of \core_customfield\data_controller objects indexed by fieldid for the questions custom fields.
      */
@@ -139,13 +143,27 @@ abstract class question_definition {
      * Constructor. Normally to get a question, you call
      * {@link question_bank::load_question()}, but questions can be created
      * directly, for example in unit test code.
-     * @return unknown_type
      */
     public function __construct() {
     }
 
     /**
-     * @return the name of the question type (for example multichoice) that this
+     * When a pending definition tries to read its latest version, fill in the latest version for all pending definitions
+     *
+     * @param string $name
+     * @return mixed
+     */
+    public function __get($name) {
+        if ($name === 'latestversion') {
+            if (isset(question_version_info::$pendingdefinitions[$this->id])) {
+                question_version_info::populate_latest_versions();
+            }
+            return $this->latestversion;
+        }
+    }
+
+    /**
+     * @return string the name of the question type (for example multichoice) that this
      * question is.
      */
     public function get_type_name() {
@@ -237,6 +255,9 @@ abstract class question_definition {
      * The first step has a variable '_order' which is a comma-separated list of question_answer ids.
      * A different version of the question will have different question_answers with different ids. However, the list of
      * choices should be similar, and so we need to shuffle the new list of ids in the same way that the old one was.
+     *
+     * Note: be sure to return all the data that was originally in $oldstep, while updating the fields that
+     * require it. Otherwise you might break features like 'Each attempt builds on last' in the quiz.
      *
      * This method should only be called if {@see validate_can_regrade_with_other_version()} did not
      * flag up a potential problem. So, this method will throw a {@see coding_exception} if it is not
@@ -348,7 +369,7 @@ abstract class question_definition {
      *      that should only be used in unavoidable, the constant question_attempt::USE_RAW_DATA
      *      meaning take all the raw submitted data belonging to this question.
      */
-    public abstract function get_expected_data();
+    abstract public function get_expected_data();
 
     /**
      * What data would need to be submitted to get this question correct.
@@ -358,7 +379,7 @@ abstract class question_definition {
      *
      * @return array|null parameter name => value.
      */
-    public abstract function get_correct_response();
+    abstract public function get_correct_response();
 
 
     /**
@@ -509,6 +530,18 @@ abstract class question_definition {
         debugging('This question does not implement the get_question_definition_for_external_rendering() method yet.',
             DEBUG_DEVELOPER);
         return null;
+    }
+
+    /**
+     * Set the latest version.
+     *
+     * Making $this->latestversion public would break the magic __get() behaviour above, so allow it to be set externally.
+     *
+     * @param int $latestversion
+     * @return void
+     */
+    public function set_latest_version(int $latestversion): void {
+        $this->latestversion = $latestversion;
     }
 }
 

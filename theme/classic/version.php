@@ -25,7 +25,7 @@
 // This line protects the file from being accessed by a URL directly.
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version = 2022041900;
-$plugin->requires = 2022041200;
+$plugin->version = 2024042200;
+$plugin->requires = 2024041600;
 $plugin->component = 'theme_classic';
-$plugin->dependencies = array('theme_boost' => 2022041200);
+$plugin->dependencies = ['theme_boost' => 2024041600];
